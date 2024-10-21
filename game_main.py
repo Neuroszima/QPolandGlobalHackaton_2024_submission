@@ -10,21 +10,18 @@ from game_logic import CheckersGame
 
 
 class Game:
-
-    def __init__(self, g_type: Literal['pygame', 'console'] = None):
+    def __init__(self, g_type: Literal['pygame', 'console'] = 'console'):
         self.g_type = g_type
         self.game_interaction_engine = GameEngine(vis_type=g_type)
         self.game_rulesystem = CheckersGame()
         self.running = False
 
     def pyg_main(self):
-        """version of main game loop for pygame-using players"""
+        """Main game loop for Pygame players"""
         self.running = True
         pygame.init()
         while self.running:
-            self.game_interaction_engine.pyg_draw_board(
-                self.game_rulesystem.board
-            )
+            self.game_interaction_engine.pyg_draw_board(self.game_rulesystem.board)
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
@@ -40,20 +37,22 @@ class Game:
         pygame.quit()
 
     def c_main(self):
-        """version of main game loop for console-using players"""
+        """Main game loop for console players"""
         self.running = True
         while self.running:
-            self.game_interaction_engine.pyg_draw_board(
-                self.game_rulesystem.board
-            )
-            inp = input("What is your decision? >")
-            if inp in ["Q", "q", "quit", "Quit"]:
-                running = False
-            if inp in ["show avaliable", "A"]:
+            self.game_interaction_engine.pyg_draw_board(self.game_rulesystem.board)
+            inp = input("What is your decision? > ")
+            if inp.lower() in ["q", "quit"]:
+                self.running = False
+            elif inp in ["show available", "A"]:
                 possible_moves = self.game_rulesystem.calculate_current_valid_moves()
-                print(possible_moves)
+                print("Available moves:", possible_moves)
                 self.game_rulesystem.mark_available()
-            if inp in ["Move", "M"]:
+            elif inp in ["move", "M"]:
+                # Implement logic for making a move
+                print("Enter your move coordinates: ")
+                move_coords = input()  # Example: "1,2 to 3,4"
+                # You would need to parse this input and validate the move
                 print("moved")
 
     def main(self):
@@ -64,5 +63,6 @@ class Game:
 
 
 if __name__ == '__main__':
-    new_game = Game("pygame")
+    g_type = input("Choose game type (pygame/console): ").strip().lower()
+    new_game = Game(g_type if g_type in ["pygame", "console"] else "console")
     new_game.main()
