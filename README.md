@@ -1,2 +1,2 @@
 # QPolandGlobalHackaton_2024_submission
-Submission to Open track for QPoland Global Quantum Hackaton 2024 organized on DoraHacks
+Quantronix team's submission to Open track for QPoland Global Quantum Hackaton 2024 organized on DoraHacks
