@@ -19,7 +19,7 @@ class CheckersVisualizer:
         for y in range(8):
             for x in range(8):
                 rect = pygame.Rect(x * block_size, y * block_size, block_size, block_size)
-                color = (255, 255, 255) if (x + y) % 2 == 0 else (0, 0, 0)
+                color = (255, 255, 255) if (x + y) % 2 == 0 else (169, 169, 169)
                 pygame.draw.rect(self.screen, color, rect)
 
                 # Draw the checkers
@@ -27,7 +27,7 @@ class CheckersVisualizer:
                 if piece == 'R':  # Red piece
                     pygame.draw.circle(self.screen, (255, 0, 0), (x * block_size + block_size // 2, y * block_size + block_size // 2), block_size // 2 - 5)
                 elif piece == 'B':  # Black piece
-                    pygame.draw.circle(self.screen, (0, 0, 0), (x * block_size + block_size // 2, y * block_size + block_size // 2), block_size // 2 - 5)
+                    pygame.draw.circle(self.screen, (105, 105, 105), (x * block_size + block_size // 2, y * block_size + block_size // 2), block_size // 2 - 5)
                 elif piece == "G":  # Available move indicator
                     pygame.draw.circle(self.screen, (0, 255, 0), (x * block_size + block_size // 2, y * block_size + block_size // 2), block_size // 2 - 5)
 

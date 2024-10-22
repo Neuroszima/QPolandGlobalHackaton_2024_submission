@@ -12,7 +12,7 @@ class GameEngine:
     """
     GAME_TITLE = "Checkers Game"
     LIGHT_BOARD_COLOR = (255, 255, 255)
-    DARK_BOARD_COLOR = (0, 0, 0)
+    DARK_BOARD_COLOR = (105, 105, 105)
     POSSIBLE_MOVE_HIGHLIGHT = (0, 255, 0)  # Green square - move is possible for current player on that board space
     TEXT_COLOR = (173, 216, 230)  # Light blue color for possible moves text
 
@@ -77,7 +77,7 @@ class GameEngine:
                     pygame.draw.circle(self.screen, (255, 0, 0), (
                         x * block_size + block_size // 2, y * block_size + block_size // 2), block_size // 2 - 5)
                 elif piece == 'B':  # Black piece
-                    pygame.draw.circle(self.screen, (0, 0, 0), (
+                    pygame.draw.circle(self.screen, (105, 105, 105), (
                         x * block_size + block_size // 2, y * block_size + block_size // 2), block_size // 2 - 5)
 
         pygame.display.flip()
