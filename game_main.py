@@ -5,14 +5,14 @@ try:
 except ImportError:
     pygame = None
 
-from game_visualization import GameEngine
+from game_visualization import GameDisplayEngine
 from game_logic import CheckersGame
 
 
 class Game:
     def __init__(self, g_type: Literal['pygame', 'console'] = 'console'):
         self.g_type = g_type
-        self.game_interaction_engine = GameEngine(vis_type=g_type)
+        self.game_interaction_engine = GameDisplayEngine(vis_type=g_type)
         self.game_rulesystem = CheckersGame()
         self.running = False
 
@@ -26,13 +26,13 @@ class Game:
                 if event.type == pygame.QUIT:
                     self.running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    self.game_interaction_engine.pyg_handle_click_select_piece(
-                        event.pos,
-                        self.game_rulesystem.current_player,
-                        self.game_rulesystem.current_player_direction,
-                        self.game_rulesystem.board,
-                        self.game_rulesystem.poss
-                    )
+                    # self.game_interaction_engine.pyg_handle_click_select_piece(event.pos)
+                    move = self.game_interaction_engine.pyg_handle_click(
+                        event.pos, self.game_rulesystem.valid_moves)
+                    if move:
+                        self.game_rulesystem.execute_move(*move)
+
+            pygame.display.flip()
 
         pygame.quit()
 
@@ -40,8 +40,8 @@ class Game:
         """Main game loop for console players"""
         self.running = True
         while self.running:
-            self.game_interaction_engine.pyg_draw_board(self.game_rulesystem.board)
-            inp = input("What is your decision? > ")
+            self.game_interaction_engine.c_draw_board(self.game_rulesystem.board)
+            inp = input("What is your decision? (q, A, M) > ")
             if inp.lower() in ["q", "quit"]:
                 self.running = False
             elif inp in ["show available", "A"]:
@@ -61,8 +61,3 @@ class Game:
         else:
             self.c_main()
 
-
-if __name__ == '__main__':
-    g_type = input("Choose game type (pygame/console): ").strip().lower()
-    new_game = Game(g_type if g_type in ["pygame", "console"] else "console")
-    new_game.main()

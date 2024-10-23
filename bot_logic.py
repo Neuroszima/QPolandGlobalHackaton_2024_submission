@@ -2,14 +2,15 @@ import numpy as np
 from qiskit import QuantumCircuit, Aer, execute
 from qiskit.circuit.library import GroverOperator
 
+
 class QuantumBot:
     def __init__(self, board):
         self.board = board
-        self.valid_moves = self.get_valid_moves()
+        self.valid_moves = self.get_valid_moves_test()
         self.num_qubits = self.calculate_qubits_needed()
         self.backend = Aer.get_backend('qasm_simulator')
 
-    def get_valid_moves(self):
+    def get_valid_moves_test(self):
         # Example of valid moves, you would normally compute this from game logic
         return [
             (3, 4, 3, 1),
@@ -110,10 +111,12 @@ class QuantumBot:
         for state, count in state_counts.items():
             print(f"State {state}: Probability = {count/1024:.2f}")
 
-# Example Usage
-board = [[0 for _ in range(8)] for _ in range(8)]  # 8x8 board example
-quantum_bot = QuantumBot(board)
 
-# Select a move using quantum methods
-selected_move = quantum_bot.quantum_move_selection()
-print(f"Quantum selected move: {selected_move}")
+# Example Usage
+if __name__ == '__main__':
+    board = [[0 for _ in range(8)] for _ in range(8)]  # 8x8 board example
+    quantum_bot = QuantumBot(board)
+
+    # Select a move using quantum methods
+    selected_move = quantum_bot.quantum_move_selection()
+    print(f"Quantum selected move: {selected_move}")
