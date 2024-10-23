@@ -1,76 +1,119 @@
-import random
-from game_logic import CheckersGame
-
-class RandomBot:
-    """A bot that selects random valid moves."""
-
-    def __init__(self, player_color: str):
-        self.player_color = player_color
-
-    def select_move(self, game: CheckersGame):
-        """Selects a random valid move for the bot."""
-        game.calculate_current_valid_moves()
-        if not game.valid_moves:
-            print("No valid moves available.")
-            return None
-
-        # Select a move at random from the valid moves
-        move = random.choice(game.valid_moves)
-        return move
-
+import numpy as np
+from qiskit import QuantumCircuit, Aer, execute
+from qiskit.circuit.library import GroverOperator
 
 class QuantumBot:
-    """A bot that uses quantum principles to select moves."""
+    def __init__(self, board):
+        self.board = board
+        self.valid_moves = self.get_valid_moves()
+        self.num_qubits = self.calculate_qubits_needed()
+        self.backend = Aer.get_backend('qasm_simulator')
 
-    def __init__(self, player_color: str):
-        self.player_color = player_color
+    def get_valid_moves(self):
+        # Example of valid moves, you would normally compute this from game logic
+        return [
+            (3, 4, 3, 1),
+            (2, 6, 3, 2),
+            (1, 5, 2, 4),
+            (0, 2, 1, 3)
+        ]
+    
+    def calculate_qubits_needed(self):
+        """
+        Calculate how many qubits are needed to encode the valid moves.
+        It depends on the number of moves (states), encoded as binary numbers.
+        """
+        num_states = len(self.valid_moves)
+        return int(np.ceil(np.log2(num_states)))
+    
+    def encode_moves(self):
+        """
+        Assign binary representations to the valid moves.
+        Each move corresponds to a quantum state.
+        """
+        num_moves = len(self.valid_moves)
+        binary_encodings = [format(i, f'0{self.num_qubits}b') for i in range(num_moves)]
+        move_map = {binary_encodings[i]: self.valid_moves[i] for i in range(num_moves)}
+        return move_map
+    
+    def initialize_quantum_circuit(self):
+        """
+        Initialize a quantum circuit with the necessary qubits for Grover's algorithm.
+        """
+        circuit = QuantumCircuit(self.num_qubits)
+        
+        # Apply Hadamard gates to initialize the superposition of all possible states
+        circuit.h(range(self.num_qubits))
+        
+        return circuit
+    
+    def grover_diffusion_operator(self, circuit):
+        """
+        Apply Grover's diffusion operator to amplify the probabilities of optimal moves.
+        """
+        grover_op = GroverOperator(oracle=self.oracle())
+        circuit.compose(grover_op, inplace=True)
 
-    def select_move(self, game: CheckersGame):
-        """Selects a move based on simulated quantum logic."""
-        game.calculate_current_valid_moves()
-        if not game.valid_moves:
-            print("No valid moves available.")
-            return None
+    def oracle(self):
+        """
+        Implement an oracle for Grover's algorithm.
+        This should mark the desired solution (optimal move) as |1>.
+        """
+        # For simplicity, we'll assume that the optimal move is encoded in the state |000>
+        optimal_move_index = 0
+        optimal_move_bin = format(optimal_move_index, f'0{self.num_qubits}b')
 
-        # Use a weighted random selection based on move quality
-        move_weights = [(move, self.evaluate_move(move, game)) for move in game.valid_moves]
-        total_weight = sum(weight for _, weight in move_weights)
+        oracle_circuit = QuantumCircuit(self.num_qubits)
+        
+        for i in range(self.num_qubits):
+            if optimal_move_bin[i] == '0':
+                oracle_circuit.x(i)
 
-        if total_weight == 0:
-            return random.choice(game.valid_moves)  # Fallback to random if no weight
+        oracle_circuit.h(self.num_qubits - 1)
+        oracle_circuit.mcx(list(range(self.num_qubits - 1)), self.num_qubits - 1)
+        oracle_circuit.h(self.num_qubits - 1)
 
-        # Select a move based on weighted probabilities
-        random_choice = random.uniform(0, total_weight)
-        cumulative_weight = 0
+        for i in range(self.num_qubits):
+            if optimal_move_bin[i] == '0':
+                oracle_circuit.x(i)
+        
+        return oracle_circuit
 
-        for move, weight in move_weights:
-            cumulative_weight += weight
-            if cumulative_weight >= random_choice:
-                return move
+    def measure(self, circuit):
+        """
+        Measure the quantum circuit to determine the most likely move.
+        """
+        circuit.measure_all()
+        result = execute(circuit, backend=self.backend, shots=1024).result()
+        counts = result.get_counts()
+        return counts
 
-        return random.choice(game.valid_moves)  # Fallback
+    def quantum_move_selection(self):
+        """
+        Run Grover's algorithm and select a move based on the measurement results.
+        """
+        circuit = self.initialize_quantum_circuit()
+        self.grover_diffusion_operator(circuit)
+        result = self.measure(circuit)
 
-    def evaluate_move(self, move, game: CheckersGame):
-        """Evaluate the quality of a move based on various criteria."""
-        row_start, col_start, row_end, col_end = move
-        score = 0
+        # Interpret the results
+        move_map = self.encode_moves()
+        most_probable_state = max(result, key=result.get)
+        selected_move = move_map[most_probable_state]
 
-        # Increase score for capturing moves
-        if abs(row_start - row_end) == 2:
-            score += 10  # Prioritize capturing
+        return selected_move
+    
+    def display_quantum_state(self, state_counts):
+        """
+        Display the quantum states and their probabilities on the side view.
+        """
+        for state, count in state_counts.items():
+            print(f"State {state}: Probability = {count/1024:.2f}")
 
-        # Encourage moving towards the center of the board
-        center_positions = [(3, 3), (3, 4), (4, 3), (4, 4)]
-        if (row_end, col_end) in center_positions:
-            score += 5
+# Example Usage
+board = [[0 for _ in range(8)] for _ in range(8)]  # 8x8 board example
+quantum_bot = QuantumBot(board)
 
-        # Encourage piece safety (not leaving pieces vulnerable)
-        if game.board[row_start][col_start] == self.player_color:
-            if row_end > 0 and game.board[row_end - 1][col_end] != ' ':
-                score -= 2  # Penalize moves that leave pieces vulnerable
-
-        # Encourage keeping pieces on the board (not losing pieces)
-        if game.board[row_end][col_end] == ' ':
-            score += 1  # Score for moving to an empty space
-
-        return score
+# Select a move using quantum methods
+selected_move = quantum_bot.quantum_move_selection()
+print(f"Quantum selected move: {selected_move}")
