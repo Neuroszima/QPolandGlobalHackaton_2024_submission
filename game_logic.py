@@ -30,7 +30,7 @@ class CheckersGame:
         """Returns a list of human-readable possible moves."""
         all_moves_printed = []
         for move in self.valid_moves:
-            all_moves_printed.append(f"{move[0]}{chr(move[1] + 65)} -> {move[2]}{chr(move[3] + 65)}")
+            all_moves_printed.append(f"{8-move[0]}{chr(move[1] + 65)} -> {8-move[2]}{chr(move[3] + 65)}")
         return all_moves_printed
 
     def calculate_current_valid_moves(self):
