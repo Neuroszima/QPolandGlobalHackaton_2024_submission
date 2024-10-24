@@ -10,6 +10,7 @@ from qiskit.circuit.quantumregister import Qubit
 
 from matplotlib import pyplot as plt
 
+MOVE_TYPEHINT = list[int, int, int, int] | tuple[int, int, int, int]
 MOVES_LIST_TYPEHINT = list[list[int, int, int, int]] | list[tuple[int, int, int, int]]
 ASSIGNED_STATES_TYPEHINT = dict[str, list]
 BOARD_TYPEHINT = list[list[str]]
@@ -18,7 +19,7 @@ BOARD_TYPEHINT = list[list[str]]
 class QuantumBot:
     ALLOWED_CONDITION_COUNT = [1, 2, 3]  # 3rd in baking
 
-    def __init__(self, number_of_conditions: int):  # condition_map: dict
+    def __init__(self, number_of_conditions: int, current_player, current_player_direction, current_enemy_player):
         """
         This class serves as the means of gauging probabilities of certain available moves the bot can make
 
@@ -46,6 +47,10 @@ class QuantumBot:
         self.current_job_shots: int | None = None
         self.counts: dict | None = None
 
+        self.enemy = current_enemy_player
+        self.player_identifier = current_player
+        self.direction = current_player_direction
+
         # self.verbose = False  #
         self.verbose = True  #
 
@@ -54,12 +59,17 @@ class QuantumBot:
         return floor(log2(valid_moves_count))+1
 
     @staticmethod
-    def _check_if_out_of_border(col, row):
+    def _check_out_of_border(col, row):
         """check if board position is actually a valid board position"""
         if 0 <= row <= 7:
             if 0 <= col <= 7:
                 return False
         return True
+
+    @staticmethod
+    def human_readable_move_format(move: MOVE_TYPEHINT):
+        """Returns a human-readable form of possible move."""
+        return f"{8-move[0]}{chr(move[1] + 65)} -> {8-move[2]}{chr(move[3] + 65)}"
 
     def _present_full_state(self, state: str):
         "|" + f"{state}".zfill(len(self.board_moves_qbit_register)) + ">"
@@ -116,8 +126,7 @@ class QuantumBot:
         return states_assigned
 
     def condition_piece_shielded(
-            self, board: BOARD_TYPEHINT, assigned_states_to_fill: ASSIGNED_STATES_TYPEHINT,
-            current_player: str, condition_num=1):
+            self, board: BOARD_TYPEHINT, assigned_states_to_fill: ASSIGNED_STATES_TYPEHINT, condition_num=1):
         """
         This condition aims at preventing overextending of the board pieces.
         This in turn means that a piece, after finished move, will have the piece of the same color on one
@@ -130,30 +139,45 @@ class QuantumBot:
 
         for state in assigned_states_to_fill:
             move = assigned_states_to_fill[state][0]
+            print(self.human_readable_move_format(move))
             fin_col, fin_row = move[3], move[2]
             start_col, start_row = move[1], move[0]
             # following are always +/- 1, we want "1 to the side, and 1 row BEHIND!"
             # "BEHIND" -> making this color agnostic, from both perspectives
-            direction_col = int((fin_col - start_col) / (fin_col - start_col))
-            direction_row = int((fin_row - start_row) / (fin_row - start_row))
-            test_col, test_row = [fin_col + direction_col, start_row - direction_row]  # col, row
+            # for this test - "row direction" of this condition check is reverse to where player goes
+            check_direction_row = -self.direction
+            test_row = fin_row + check_direction_row  # col, row
+            print(f"{test_row}")
+            test_col_1 = fin_col - 1
+            test_col_2 = fin_col + 1
             # conditions
-            if self._check_if_out_of_border(test_col, test_row):
+            if not self._check_out_of_border(test_col_1, test_row):
+                print(test_col_1, test_row, "'", board[test_row][test_col_1], "'",)
+                if board[test_row][test_col_1] == self.player_identifier:
+                    if test_col_1 != start_col:
+                        assigned_states_to_fill[state][condition_num] = 1
+                        continue
+            else:
                 assigned_states_to_fill[state][condition_num] = 1
                 continue
-            if board[test_row][test_col] == current_player:
+            if not self._check_out_of_border(test_col_2, test_row):
+                print(test_col_2, test_row, "'", board[test_row][test_col_2], "'",)
+                if board[test_row][test_col_2] == self.player_identifier:
+                    if test_col_2 != start_col:
+                        assigned_states_to_fill[state][condition_num] = 1
+                        continue
+            else:
                 assigned_states_to_fill[state][condition_num] = 1
+                continue
+
             if assigned_states_to_fill[state][condition_num] != 1:
                 print(f"condition not met: {state}")
                 print(f"move coordinates: {start_row=}, {start_col=}, {fin_row=}, {fin_col=}")
 
-        print(assigned_states_to_fill)
-
         return assigned_states_to_fill
 
     def condition_moves_to_be_beaten(
-            self, board: BOARD_TYPEHINT, assigned_states_to_fill: ASSIGNED_STATES_TYPEHINT,
-            enemy_player: str, condition_num=2):
+            self, board: BOARD_TYPEHINT, assigned_states_to_fill: ASSIGNED_STATES_TYPEHINT, condition_num=2):
         """
         This condition checks, if after the move, our piece moved would get beaten
 
@@ -173,18 +197,18 @@ class QuantumBot:
             # conditions
             print(test_col_1, test_row_1)
             print(test_col_2, test_row_2)
-            if not self._check_if_out_of_border(test_col_1, test_row_1):  # perpendicular check
+            if not self._check_out_of_border(test_col_1, test_row_1):  # perpendicular check
 
-                if board[test_row_1][test_col_1] == enemy_player:
+                if board[test_row_1][test_col_1] == self.enemy:
                     # lower, perpendicular out of board?
-                    if not self._check_if_out_of_border(test_col_2, fin_row - direction_col):
+                    if not self._check_out_of_border(test_col_2, fin_row - direction_col):
                         # can this enemy really jump over on the perpendicular lower empty field?
                         if board[fin_row - direction_col][test_col_2] == " ":
                             # assigned_states_to_fill[state][condition_num] = 0
                             continue
 
-            if not self._check_if_out_of_border(test_col_2, test_row_2):  # check "in the direction"
-                if board[test_row_1][test_col_2] == enemy_player:
+            if not self._check_out_of_border(test_col_2, test_row_2):  # check "in the direction"
+                if board[test_row_1][test_col_2] == self.enemy:
                     # lower, in the direction we cane from with the piece is always empty
                     # eather through beating or through just piece moving out
                     # assigned_states_to_fill[state][condition_num] = 0
@@ -221,9 +245,6 @@ class QuantumBot:
                 if flag:
                     for invert_index, c in enumerate(reversed(state)):
                         if c == "0":
-                            print(state)
-                            print(invert_index)
-                            print(prepared_assigned_states)
                             check_circuit.append(XGate(), [self.board_moves_qbit_register[invert_index]])
                     check_circuit.append(CNXGate, [
                         *self.board_moves_qbit_register,
@@ -392,7 +413,7 @@ class QuantumBot:
         return self.counts
 
     def calculate_recommendations(
-            self, valid_moves_list: MOVES_LIST_TYPEHINT, board: BOARD_TYPEHINT, current_player: str, enemy_player: str):
+            self, valid_moves_list: MOVES_LIST_TYPEHINT, board: BOARD_TYPEHINT):
         """flag possible states, execute entire subcircuit creation, schedule a job and get results"""
         moves_count = len(valid_moves_list)
         self.q_allocate_registers(moves_count)
@@ -401,24 +422,14 @@ class QuantumBot:
         self.q_initialize()
         self.valid_moves_with_flags = self.assign_valid_board_moves_to_q_states(valid_moves_list)
         self.valid_moves_with_flags = self.condition_piece_shielded(
-            board, self.valid_moves_with_flags, current_player, condition_num=1)
+            board, self.valid_moves_with_flags,condition_num=1)
         self.valid_moves_with_flags = self.condition_moves_to_be_beaten(
-            board, self.valid_moves_with_flags, enemy_player, condition_num=2)
-
-        # this is for testing only and will be removed soon
-        # self.valid_moves_with_flags = {
-        #     '000': [(5, 0, 4, 1), 0, 1, 0], '001': [(5, 2, 4, 3), 1, 1, 0],
-        #     '010': [(5, 2, 4, 1), 0, 1, 0], '011': [(5, 4, 4, 5), 1, 1, 0], '100': [(5, 4, 4, 3), 0, 1, 0],
-        #     '101': [(5, 6, 4, 7), 0, 1, 0], '110': [(5, 6, 4, 5), 1, 1, 0]}
-        # self.valid_moves_with_flags = {
-        #  '0000': [(3, 2, 2, 3), 0, 0, 1, 0], '0001': [(3, 2, 2, 1), 0, 1, 0, 0], '0010': [(4, 5, 3, 6), 0, 1, 0, 0],
-        #  '0011': [(4, 5, 3, 4), 0, 0, 1, 0], '0100': [(5, 0, 4, 1), 1, 0, 0, 0], '0101': [(5, 2, 4, 3), 0, 1, 0, 0],
-        #  '0110': [(5, 2, 4, 1), 0, 1, 1, 0], '0111': [(5, 6, 4, 7), 1, 1, 1, 0], '1000': [(6, 5, 5, 4), 0, 1, 0, 0],
-        #  '1001': [(7, 2, 6, 3), 0, 0, 1, 0],}
+            board, self.valid_moves_with_flags, condition_num=2)
 
         # prepare entire diffusion circuit based on flagged conditions
-        # ATTENTION!!!, ORDER AND NUMBER OF ITERATIONS HAS BIG IMPACT!!!
-        # below is optimal, i kind of guessed that you have to interleave between these
+        # ATTENTION!!!, ORDER, "MAGIC NUMBER", AND NUMBER OF ITERATIONS HAS BIG IMPACT!!!
+        # below is optimal, i kind of guessed that you have to interleave between these, but then reversed
+        # order of what i came up with at some point seems to do the best trick
         self.q_prepare_iteration(3)
         self.q_prepare_iteration(1)
         self.q_prepare_iteration(2)
@@ -429,19 +440,75 @@ class QuantumBot:
         self.master_circuit.measure(self.board_moves_qbit_register[0:len(self.results_register)], self.results_register)
         self.__schedule_job_locally()
 
-    def parse_recommendations_bot_use(self):
-        """when counts are obtained"""
+    def parse_recommendations_bot_use(self):  # true return type: list[list[tuple[int, int, int, int], float]]
+        """when counts are obtained, prepare percentage based recommendations for moves, and sort
+        them based on that key
+
+        percentage chance is given in the 0.XXX format here
+        """
+        total_counts_accumulated = 0
+        moves_recommended = []
+        for state in self.valid_moves_with_flags:
+            move = self.valid_moves_with_flags[state][0]
+            counts = self.counts[state]
+            total_counts_accumulated += counts
+            self.valid_moves_with_flags[state][-1] = counts
+            moves_recommended.append([move, counts])
+
+        total_counts_accumulated = (
+           self.current_job_shots - total_counts_accumulated) // len(self.valid_moves_with_flags)
+        for rec_ in moves_recommended:
+            rec_[-1] += total_counts_accumulated
+            rec_[-1] /= self.current_job_shots
+
+        moves_recommended.sort(key=lambda rec_: -rec_[-1])
+        return moves_recommended
 
     def parse_recommendations_human_readable(self):
-        pass
+        """
+        when counts are obtained, prepare percentage based recommendations for moves, and sort
+        them based on that key
+
+        percentage chance is given in the XX.XX% format here, and the returned type is different than
+        the "bot_use" method. It is aimed to be text-oriented and to be consumed further, in a method
+        that can read list of rows that are represented as 3 columns.
+
+        these columns are read like this: quantum state identifier, corresponding human-readable move format,
+            percentage chance of the bot picking this move (XX.XX%)
+        """
+        print(self.counts)
+        total_counts_accumulated = 0
+        moves_recommended = []
+        for state in self.valid_moves_with_flags:
+            move = self.valid_moves_with_flags[state][0]
+            human_state = "|" + state + ">"
+            human_move = self.human_readable_move_format(move)
+            counts = self.counts[state]
+            total_counts_accumulated += counts
+            moves_recommended.append([human_state, human_move, counts])
+
+        moves_recommended.sort(key=lambda rec_: -rec_[-1])
+
+        total_counts_accumulated = (
+           self.current_job_shots - total_counts_accumulated) // len(self.valid_moves_with_flags)
+        for rec_ in moves_recommended:
+            rec_[-1] += total_counts_accumulated
+            fixed_counts = int(rec_[-1] * 10000 / self.current_job_shots)
+            minor = f"{fixed_counts%100}".zfill(2)
+            human_percentage = f"{fixed_counts//100:2}.{minor}%"
+            rec_[-1] = human_percentage
+
+        return moves_recommended
 
     def __draw_master_circuit(self):
+        """just don't :D"""
         if not self.verbose:
             return
         self.master_circuit.draw(output='mpl')
         plt.show()
 
     def __draw_circuit(self, circuit: QuantumCircuit):
+        """well, not really a problem, but don't do it"""
         if not self.verbose:
             return
         circuit.draw(output='mpl')
@@ -467,7 +534,10 @@ if __name__ == '__main__':
     c_game.calculate_current_valid_moves()
     print(c_game.valid_moves)
     print(c_game.human_readable_possible_moves())
-    q_bot = QuantumBot(3)
+    q_bot = QuantumBot(2, c_game.current_player, c_game.current_player_direction, c_game.current_enemy_player)
     q_bot.calculate_recommendations(
-        c_game.valid_moves, c_game.board, c_game.current_player, c_game.current_enemy_player
+        c_game.valid_moves, c_game.board
     )
+    print(q_bot.valid_moves_with_flags)
+    for rec in q_bot.parse_recommendations_human_readable():
+        print(rec)
