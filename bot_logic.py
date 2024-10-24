@@ -139,7 +139,6 @@ class QuantumBot:
 
         for state in assigned_states_to_fill:
             move = assigned_states_to_fill[state][0]
-            print(self.human_readable_move_format(move))
             fin_col, fin_row = move[3], move[2]
             start_col, start_row = move[1], move[0]
             # following are always +/- 1, we want "1 to the side, and 1 row BEHIND!"
@@ -147,12 +146,10 @@ class QuantumBot:
             # for this test - "row direction" of this condition check is reverse to where player goes
             check_direction_row = -self.direction
             test_row = fin_row + check_direction_row  # col, row
-            print(f"{test_row}")
             test_col_1 = fin_col - 1
             test_col_2 = fin_col + 1
             # conditions
             if not self._check_out_of_border(test_col_1, test_row):
-                print(test_col_1, test_row, "'", board[test_row][test_col_1], "'",)
                 if board[test_row][test_col_1] == self.player_identifier:
                     if test_col_1 != start_col:
                         assigned_states_to_fill[state][condition_num] = 1
@@ -161,7 +158,6 @@ class QuantumBot:
                 assigned_states_to_fill[state][condition_num] = 1
                 continue
             if not self._check_out_of_border(test_col_2, test_row):
-                print(test_col_2, test_row, "'", board[test_row][test_col_2], "'",)
                 if board[test_row][test_col_2] == self.player_identifier:
                     if test_col_2 != start_col:
                         assigned_states_to_fill[state][condition_num] = 1
@@ -169,10 +165,6 @@ class QuantumBot:
             else:
                 assigned_states_to_fill[state][condition_num] = 1
                 continue
-
-            if assigned_states_to_fill[state][condition_num] != 1:
-                print(f"condition not met: {state}")
-                print(f"move coordinates: {start_row=}, {start_col=}, {fin_row=}, {fin_col=}")
 
         return assigned_states_to_fill
 
@@ -188,32 +180,47 @@ class QuantumBot:
         # move: (start_row, start_col, fin_row, fin_col)
         for state in assigned_states_to_fill:
             move = assigned_states_to_fill[state][0]
+            print(self.human_readable_move_format(move))
             fin_col, fin_row = move[3], move[2]
             start_col, start_row = move[1], move[0]
-            direction_col = int((fin_col - start_col) / (fin_col - start_col))
-            direction_row = int((fin_row - start_row) / (fin_row - start_row))
-            test_col_1, test_row_1 = fin_col - direction_col, fin_row + direction_row  # perpendicular, higher
-            test_col_2, test_row_2 = fin_col + direction_col, fin_row + direction_row  # in the direction, higher
+            # moving only one field with check, since we have to include check for
+            direction_col = int((fin_col - start_col) / abs(fin_col - start_col))
             # conditions
-            print(test_col_1, test_row_1)
-            print(test_col_2, test_row_2)
-            if not self._check_out_of_border(test_col_1, test_row_1):  # perpendicular check
-
-                if board[test_row_1][test_col_1] == self.enemy:
-                    # lower, perpendicular out of board?
-                    if not self._check_out_of_border(test_col_2, fin_row - direction_col):
+            test_col_1 = fin_col - direction_col # horizontal direction
+            test_col_2 = fin_col + direction_col # horizontal direction
+            test_row_enemy = fin_row + self.direction
+            if not self._check_out_of_border(test_col_1, test_row_enemy):  # perpendicular check
+                if board[test_row_enemy][start_col] == self.enemy:
+                    # enemy present, but can he beat?
+                    # is lower, straight from enemy, free? if so, he can check!
+                    if not self._check_out_of_border(test_col_1 - 2*direction_col, test_row_enemy - 2*self.direction):
                         # can this enemy really jump over on the perpendicular lower empty field?
-                        if board[fin_row - direction_col][test_col_2] == " ":
+                        if board[test_row_enemy - 2*self.direction][test_col_1 - 2*direction_col] == " ":
                             # assigned_states_to_fill[state][condition_num] = 0
+                            print("enemy can check!")
                             continue
 
-            if not self._check_out_of_border(test_col_2, test_row_2):  # check "in the direction"
-                if board[test_row_1][test_col_2] == self.enemy:
-                    # lower, in the direction we cane from with the piece is always empty
-                    # eather through beating or through just piece moving out
+            if not self._check_out_of_border(test_col_2, test_row_enemy):  # check "in the direction"
+                if board[test_row_enemy][test_col_2] == self.enemy:
+                    # lower, in the direction we came from with the piece is always empty
+                    # either through beating or through just piece moving out
                     # assigned_states_to_fill[state][condition_num] = 0
+                    print("enemy can check!")
                     continue
             assigned_states_to_fill[state][condition_num] = 1  # it is an ok move -> approved to move like that
+
+        return assigned_states_to_fill
+
+    def condition_can_beat(
+            self, board: BOARD_TYPEHINT, assigned_states_to_fill: ASSIGNED_STATES_TYPEHINT, condition_num=3):
+        """prepare condition for beating opponent checker!"""
+        for state in assigned_states_to_fill:
+            move = assigned_states_to_fill[state][0]
+            print(self.human_readable_move_format(move))
+            fin_col, fin_row = move[3], move[2]
+            start_col, start_row = move[1], move[0]
+            if abs(fin_row - start_row) > 1:
+                assigned_states_to_fill[state][condition_num] = 1  # it is an ok move -> approved to move like that
 
         return assigned_states_to_fill
 
@@ -425,6 +432,8 @@ class QuantumBot:
             board, self.valid_moves_with_flags,condition_num=1)
         self.valid_moves_with_flags = self.condition_moves_to_be_beaten(
             board, self.valid_moves_with_flags, condition_num=2)
+        self.valid_moves_with_flags = self.condition_can_beat(
+            board, self.valid_moves_with_flags, condition_num=3)
 
         # prepare entire diffusion circuit based on flagged conditions
         # ATTENTION!!!, ORDER, "MAGIC NUMBER", AND NUMBER OF ITERATIONS HAS BIG IMPACT!!!
@@ -483,7 +492,10 @@ class QuantumBot:
             move = self.valid_moves_with_flags[state][0]
             human_state = "|" + state + ">"
             human_move = self.human_readable_move_format(move)
-            counts = self.counts[state]
+            if state not in self.counts:
+                counts = 0
+            else:
+                counts = self.counts[state]
             total_counts_accumulated += counts
             moves_recommended.append([human_state, human_move, counts])
 
@@ -534,7 +546,7 @@ if __name__ == '__main__':
     c_game.calculate_current_valid_moves()
     print(c_game.valid_moves)
     print(c_game.human_readable_possible_moves())
-    q_bot = QuantumBot(2, c_game.current_player, c_game.current_player_direction, c_game.current_enemy_player)
+    q_bot = QuantumBot(3, c_game.current_player, c_game.current_player_direction, c_game.current_enemy_player)
     q_bot.calculate_recommendations(
         c_game.valid_moves, c_game.board
     )
