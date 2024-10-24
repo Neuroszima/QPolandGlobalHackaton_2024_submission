@@ -16,7 +16,7 @@ BOARD_TYPEHINT = list[list[str]]
 
 
 class QuantumBot:
-    ALLOWED_CONDITION_COUNT = [1, 2]  # 3rd in baking
+    ALLOWED_CONDITION_COUNT = [1, 2, 3]  # 3rd in baking
 
     def __init__(self, number_of_conditions: int):  # condition_map: dict
         """
@@ -46,7 +46,8 @@ class QuantumBot:
         self.current_job_shots: int | None = None
         self.counts: dict | None = None
 
-        self.verbose = True
+        # self.verbose = False  #
+        self.verbose = True  #
 
     @staticmethod
     def q_minimal_board_move_alloc(valid_moves_count: int):
@@ -66,13 +67,13 @@ class QuantumBot:
     def q_allocate_registers(self, valid_moves_count):
         """creates registers for future purposes"""
         moves_q_alloc = self.q_minimal_board_move_alloc(valid_moves_count)
-        self.board_moves_qbit_register = QuantumRegister(moves_q_alloc + self.number_of_conditions + 1, name="board")
+        self.board_moves_qbit_register = QuantumRegister(moves_q_alloc + self.number_of_conditions + 2, name="board")
         if self.number_of_conditions < 4:  # up to 3?
             self.quantum_adder_register = QuantumRegister(2, name="add")  # quantum counting up to 3
         else:
             self.quantum_adder_register = QuantumRegister(3, name="add")  # quantum counting up to 7
 
-        self.results_register = ClassicalRegister(moves_q_alloc + self.number_of_conditions + 1, name="meas.")
+        self.results_register = ClassicalRegister(moves_q_alloc , name="meas.")  # + self.number_of_conditions + 2
         self.ancilla_register = QuantumRegister(1, name="anc")  # extra qbit for Z-flip action
         self.condition_register = QuantumRegister(self.number_of_conditions, name="condi")
 
@@ -142,6 +143,11 @@ class QuantumBot:
                 continue
             if board[test_row][test_col] == current_player:
                 assigned_states_to_fill[state][condition_num] = 1
+            if assigned_states_to_fill[state][condition_num] != 1:
+                print(f"condition not met: {state}")
+                print(f"move coordinates: {start_row=}, {start_col=}, {fin_row=}, {fin_col=}")
+
+        print(assigned_states_to_fill)
 
         return assigned_states_to_fill
 
@@ -226,7 +232,7 @@ class QuantumBot:
                     for invert_index, c in enumerate(reversed(state)):
                         if c == "0":
                             check_circuit.append(XGate(), [self.board_moves_qbit_register[invert_index]])
-        self.__draw_circuit(check_circuit)
+        # self.__draw_circuit(check_circuit)
 
         return check_circuit
 
@@ -278,7 +284,7 @@ class QuantumBot:
             adder_circuit.append(
                 gate, [qbit, *control_adder_qbits, self.quantum_adder_register[target_adder_bit]]
             )
-        self.__draw_circuit(adder_circuit)
+        # self.__draw_circuit(adder_circuit)
 
         return adder_circuit
 
@@ -307,7 +313,7 @@ class QuantumBot:
             adder_check_circuit.append(C3XGate, [*self.quantum_adder_register, *self.ancilla_register])
         elif adder_len == 2:
             adder_check_circuit.append(C2XGate, [*self.quantum_adder_register, *self.ancilla_register])
-        self.__draw_circuit(adder_check_circuit)
+        # self.__draw_circuit(adder_check_circuit)
 
         return adder_check_circuit
 
@@ -335,7 +341,7 @@ class QuantumBot:
 
         return grover_diffusion_circuit
 
-    def q_prepare_iteration(self, iteration_num: int):
+    def q_prepare_iteration(self, oracle_magic_number: int):
         """prepares entire diffusion procedure"""
         possible_numbers = [*range(2**(len(self.quantum_adder_register)))]
         diffusion = self.__grover_diffusion()
@@ -344,7 +350,7 @@ class QuantumBot:
         adder_circuit = self.q_adder()
 
         adder_check_circuits: list[QuantumCircuit] = []
-        for i in possible_numbers[iteration_num:]:
+        for i in possible_numbers[oracle_magic_number:]:
             adder_check_circuits.append(self.q_adder_check(i))
 
         # assembly
@@ -354,19 +360,12 @@ class QuantumBot:
         # self.__draw_master_circuit()
         self.master_circuit.compose(
             adder_circuit, [*self.condition_register, *self.quantum_adder_register], inplace=True)
-        # self.__draw_master_circuit()
+
         for circ in adder_check_circuits:
             self.master_circuit.barrier()
             self.master_circuit.compose(circ, [*self.quantum_adder_register, *self.ancilla_register], inplace=True)
-            # self.__draw_master_circuit()
-
-        self.master_circuit.z(self.ancilla_register[-1])
-
-        # reverse ops
-        for circ in reversed(adder_check_circuits):
-            self.master_circuit.compose(
-                circ.reverse_ops(), [*self.quantum_adder_register, *self.ancilla_register], inplace=True)
-            self.master_circuit.barrier()
+            self.master_circuit.z(self.ancilla_register[-1])
+            self.master_circuit.compose(circ.reverse_ops(), [*self.quantum_adder_register, *self.ancilla_register], inplace=True)
 
         self.master_circuit.barrier()
         self.master_circuit.compose(
@@ -377,7 +376,7 @@ class QuantumBot:
         self.master_circuit.barrier()
 
         self.master_circuit.compose(diffusion, [*self.board_moves_qbit_register], inplace=True)
-        self.__draw_master_circuit()
+        # self.__draw_master_circuit()
 
 
     def __schedule_job_locally(self, shots=10000, seed_simulator=None):
@@ -407,22 +406,31 @@ class QuantumBot:
             board, self.valid_moves_with_flags, enemy_player, condition_num=2)
 
         # this is for testing only and will be removed soon
-        # self.valid_moves_with_flags =
-        # {'000': [(5, 0, 4, 1), 0, 0, 0], '001': [(5, 2, 4, 3), 0, 0, 0], '010': [(5, 2, 4, 1), 0, 0, 0],
-        #  '011': [(5, 4, 4, 5), 0, 0, 0], '100': [(5, 4, 4, 3), 0, 0, 0], '101': [(5, 6, 4, 7), 0, 0, 0],
-        #  '110': [(5, 6, 4, 5), 0, 1, 0]}
+        # self.valid_moves_with_flags = {
+        #     '000': [(5, 0, 4, 1), 0, 1, 0], '001': [(5, 2, 4, 3), 1, 1, 0],
+        #     '010': [(5, 2, 4, 1), 0, 1, 0], '011': [(5, 4, 4, 5), 1, 1, 0], '100': [(5, 4, 4, 3), 0, 1, 0],
+        #     '101': [(5, 6, 4, 7), 0, 1, 0], '110': [(5, 6, 4, 5), 1, 1, 0]}
+        # self.valid_moves_with_flags = {
+        #  '0000': [(3, 2, 2, 3), 0, 0, 1, 0], '0001': [(3, 2, 2, 1), 0, 1, 0, 0], '0010': [(4, 5, 3, 6), 0, 1, 0, 0],
+        #  '0011': [(4, 5, 3, 4), 0, 0, 1, 0], '0100': [(5, 0, 4, 1), 1, 0, 0, 0], '0101': [(5, 2, 4, 3), 0, 1, 0, 0],
+        #  '0110': [(5, 2, 4, 1), 0, 1, 1, 0], '0111': [(5, 6, 4, 7), 1, 1, 1, 0], '1000': [(6, 5, 5, 4), 0, 1, 0, 0],
+        #  '1001': [(7, 2, 6, 3), 0, 0, 1, 0],}
 
         # prepare entire diffusion circuit based on flagged conditions
+        # ATTENTION!!!, ORDER AND NUMBER OF ITERATIONS HAS BIG IMPACT!!!
+        # below is optimal, i kind of guessed that you have to interleave between these
+        self.q_prepare_iteration(3)
         self.q_prepare_iteration(1)
-        self.master_circuit.measure(self.board_moves_qbit_register, self.results_register)
+        self.q_prepare_iteration(2)
+        self.q_prepare_iteration(1)
+        self.q_prepare_iteration(2)
+        self.q_prepare_iteration(1)
+
+        self.master_circuit.measure(self.board_moves_qbit_register[0:len(self.results_register)], self.results_register)
         self.__schedule_job_locally()
 
-        print(
-            {s: self.counts[s] for s in sorted(self.counts, key=lambda x: x)}
-        )
-
     def parse_recommendations_bot_use(self):
-        pass
+        """when counts are obtained"""
 
     def parse_recommendations_human_readable(self):
         pass
@@ -445,9 +453,21 @@ if __name__ == '__main__':
     from game_logic import CheckersGame
     c_game = CheckersGame()
     # board = [[0 for _ in range(8)] for _ in range(8)]  # 8x8 board example
+    temporary_board = [
+        [' ', 'B', ' ', 'B', ' ', 'B', ' ', 'B'],
+        ['B', ' ', 'B', ' ', ' ', ' ', 'B', ' '],
+        [' ', ' ', ' ', ' ', ' ', 'B', ' ', 'B'],
+        [' ', ' ', 'R', ' ', ' ', ' ', ' ', ' '],
+        [' ', ' ', ' ', ' ', ' ', 'R', ' ', ' '],
+        ['R', ' ', 'R', ' ', ' ', ' ', 'R', ' '],
+        [' ', 'R', ' ', ' ', ' ', 'R', ' ', 'R'],
+        ['R', ' ', 'R', ' ', 'R', ' ', 'R', ' ']
+    ]
+    c_game.board = temporary_board
+    c_game.calculate_current_valid_moves()
     print(c_game.valid_moves)
     print(c_game.human_readable_possible_moves())
-    q_bot = QuantumBot(2)
+    q_bot = QuantumBot(3)
     q_bot.calculate_recommendations(
         c_game.valid_moves, c_game.board, c_game.current_player, c_game.current_enemy_player
     )
