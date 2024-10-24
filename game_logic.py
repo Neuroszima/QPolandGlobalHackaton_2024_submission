@@ -12,6 +12,7 @@ class CheckersGame:
         ['R', ' ', 'R', ' ', 'R', ' ', 'R', ' ']
     ]
     STARTING_PLAYER = "R"
+    STARTING_ENEMY = "B"
     PLAYER_1_COLOR = "R"
     PLAYER_2_COLOR = "B"
     PLAYER_BOARD_DIRECTION = {
@@ -22,6 +23,7 @@ class CheckersGame:
     def __init__(self):
         self.board = self.STARTING_BOARD
         self.current_player = self.STARTING_PLAYER
+        self.current_enemy_player = self.STARTING_ENEMY
         self.current_player_direction = self.PLAYER_BOARD_DIRECTION[self.current_player]
         self.valid_moves: list = []
         self.calculate_current_valid_moves()
@@ -30,7 +32,7 @@ class CheckersGame:
         """Returns a list of human-readable possible moves."""
         all_moves_printed = []
         for move in self.valid_moves:
-            all_moves_printed.append(f"{move[0]}{chr(move[1] + 65)} -> {move[2]}{chr(move[3] + 65)}")
+            all_moves_printed.append(f"{8-move[0]}{chr(move[1] + 65)} -> {8-move[2]}{chr(move[3] + 65)}")
         return all_moves_printed
 
     def calculate_current_valid_moves(self):
