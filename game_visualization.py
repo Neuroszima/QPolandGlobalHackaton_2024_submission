@@ -5,13 +5,13 @@ except ImportError:
 
 from warnings import warn
 from typing import Literal, List, Tuple
-MOVE_RETURNED_TYPE = tuple[int, int, int, int] | tuple[float, float, float, float]
 
+MOVE_RETURNED_TYPE = tuple[int, int, int, int] | tuple[float, float, float, float]
 
 class GameDisplayEngine:
     """
-    Everything connected to drawing pieces, game state, board etc. in console or in pygame
-    Also handles on_click events/mouse_data for pygame side of the game interactions
+    Everything connected to drawing pieces, game state, board etc. in console or in pygame.
+    Also handles on_click events/mouse_data for pygame side of the game interactions.
 
     ONLY DRAWING + WINDOW INTERACTION, NO LOGIC LIKE CALCULATING LEGAL MOVES!!!
     """
@@ -37,7 +37,7 @@ class GameDisplayEngine:
         else:
             pygame.init()  # Initialize Pygame
             self.window_size = window_size
-            self.screen = pygame.display.set_mode((window_size, window_size))
+            self.screen = pygame.display.set_mode((window_size + 200, window_size))  # Extend window size
             self.block_size = self.window_size // 8
         self.selected_piece = None
         self.possible_moves = []  # To track possible moves
@@ -59,9 +59,11 @@ class GameDisplayEngine:
 
     def pyg_get_square(self, pos) -> Tuple[int, int]:
         """Retrieve 2D board coordinates from mouse click events."""
-        # block_size = self.window_size // 8
         x, y = pos
-        return x // self.block_size, y // self.block_size
+        # Adjust the coordinates to account for padding
+        adjusted_x = (x - 50) // self.block_size  # 50 pixels of padding on the left
+        adjusted_y = y // self.block_size  # No padding at the top
+        return adjusted_x, adjusted_y
 
     def c_draw_board(self, board: List[List[str]]):
         """Draw board for console type of rendering."""
@@ -78,7 +80,7 @@ class GameDisplayEngine:
         """Draw the base board version in window for pygame type of rendering."""
         for y in range(8):
             for x in range(8):
-                rect = pygame.Rect(x * self.block_size, y * self.block_size, self.block_size, self.block_size)
+                rect = pygame.Rect(x * self.block_size + 50, y * self.block_size, self.block_size, self.block_size)  # 50 pixels offset for x
                 color = self.LIGHT_BOARD_COLOR if (x + y) % 2 == 0 else self.DARK_BOARD_COLOR
                 pygame.draw.rect(self.screen, color, rect)
 
@@ -89,11 +91,9 @@ class GameDisplayEngine:
                 pygame.draw.circle(
                     surface=self.screen,
                     color=self.COLORS_OF_PIECES[piece],
-                    center=((x + 0.5) * self.block_size, (y + 0.5) * self.block_size),
+                    center=((x + 0.5) * self.block_size + 50, (y + 0.5) * self.block_size),  # Center x adjusted
                     radius=self.block_size // 2 - 5
                 )
-
-        # pygame.display.flip()
 
     def c_possible_moves_section(self, human_readable_possible_moves: List[str]):
         """Display possible moves in console."""
@@ -106,20 +106,18 @@ class GameDisplayEngine:
         text_y = 10  # Initial y position for text
         for move in human_readable_possible_moves[:10]:  # Show top 10 moves
             text_surface = font.render(move, True, self.TEXT_COLOR)
-            self.screen.blit(text_surface, (self.window_size - 150, text_y))  # Draw on the right side
+            self.screen.blit(text_surface, (self.window_size + 10, text_y))  # Draw on the right side
             text_y += 30  # Space between each line
         pygame.display.flip()
 
     def pyg_overlay_possible_selected_moves(self):
         """Highlight possible moves for the selected piece."""
         if self.selected_piece is not None:
-            block_size = self.window_size // 8
             for move in self.possible_moves:
                 x, y = move
-                rect = pygame.Rect(x * block_size, y * block_size, block_size, block_size)
+                rect = pygame.Rect(x * self.block_size + 50, y * self.block_size, self.block_size, self.block_size)  # Adjust for x
                 pygame.draw.rect(self.screen, self.POSSIBLE_MOVE_HIGHLIGHT, rect, 5)  # Draw a border for possible moves
             pygame.display.flip()
-
 
     def pyg_handle_click_select_piece(self, pos):
         """
@@ -143,14 +141,12 @@ class GameDisplayEngine:
 
     def pyg_handle_click(self, pos, valid_moves) -> MOVE_RETURNED_TYPE | None:
         """
-        check if clicked spot corresponds to some action, and return identifier if it happens so accordingly
+        Check if clicked spot corresponds to some action, and return identifier if it happens so accordingly.
 
-        for now it only returns valid move combination of starting and ending coordinates
+        For now it only returns valid move combination of starting and ending coordinates.
         """
         x, y = self.pyg_get_square(pos)
         if valid_moves:
-            # idea for testing: sort by key=lambda v_move: v_move[0]?
-            # meaning: sort by start row to get the priority on "left oriented" moves first?
             for move in valid_moves:
                 if (y, x) == (move[2], move[3]):
                     return move
@@ -177,26 +173,39 @@ class GameDisplayEngine:
                 capture_y = y + 2 * direction
                 capture_x = x + 2 * dx
                 if 0 <= new_y < 8 and 0 <= new_x < 8 and 0 <= capture_y < 8 and 0 <= capture_x < 8:
-                    if self.board[new_y][new_x] != ' ' and self.board[new_y][new_x] != self.current_player:
-                        if self.board[capture_y][capture_x] == ' ':
-                            valid_moves.append((capture_y, capture_x))  # Add capture move
+                    if self.board[new_y][new_x] != ' ' and self.board[capture_y][capture_x] == ' ':
+                        valid_moves.append((capture_y, capture_x))  # Add capture move
         return valid_moves
 
-    def move_piece(self, from_pos: Tuple[int, int], to_pos: Tuple[int, int]):
-        """Move a piece on the board and handle capture logic."""
-        location = f"{self.__class__}.{self.get_valid_moves.__name__}"
-        warn(f"this function, due to the fact that it contains logic for game ruleset, "
-             f"shouldn't be here\n{location}", category=DeprecationWarning, stacklevel=2)
-
-        # you may change this to include new position
-        y_from, x_from = from_pos
-        y_to, x_to = to_pos
-        self.board[y_to][x_to] = self.board[y_from][x_from]  # Move piece
+    def move_piece(self, from_coords: Tuple[int, int], to_coords: Tuple[int, int]):
+        """Move a piece from one location to another."""
+        y_from, x_from = from_coords
+        y_to, x_to = to_coords
+        self.board[y_to][x_to] = self.board[y_from][x_from]  # Move piece to new location
         self.board[y_from][x_from] = ' '  # Empty the original spot
 
-        # Check for capturing
-        if abs(y_from - y_to) == 2:
-            mid_y = (y_from + y_to) // 2
-            mid_x = (x_from + x_to) // 2
-            self.board[mid_y][mid_x] = ' '  # Remove captured piece
+    def run(self):
+        """Main game loop for Pygame rendering."""
+        if self.vis_type == 'console':
+            while True:
+                self.c_draw_board(self.board)
+                # Example: handle user input or break loop
+                # Implement your logic for handling user input here
+        elif self.vis_type == 'pygame':
+            self.pyg_display_title()  # Set the game title
+            running = True
+            while running:
+                self.screen.fill((0, 0, 0))  # Fill the screen with black
+                self.pyg_draw_board(self.board)  # Draw the board
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        running = False
+                    elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:  # Left mouse button
+                        pos = pygame.mouse.get_pos()
+                        self.pyg_handle_click_select_piece(pos)  # Handle piece selection
+                pygame.display.flip()  # Update the display
+            pygame.quit()  # Close Pygame
 
+if __name__ == '__main__':
+    engine = GameDisplayEngine(vis_type='pygame', window_size=600)
+    engine.run()
