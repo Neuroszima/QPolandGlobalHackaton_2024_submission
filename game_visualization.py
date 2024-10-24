@@ -1,12 +1,8 @@
-try:
-    import pygame
-except ImportError:
-    pygame = None
-
+import pygame
 from warnings import warn
 from typing import Literal, List, Tuple
-MOVE_RETURNED_TYPE = tuple[int, int, int, int] | tuple[float, float, float, float]
 
+MOVE_RETURNED_TYPE = tuple[int, int, int, int] | tuple[float, float, float, float]
 
 class GameDisplayEngine:
     """
@@ -29,6 +25,8 @@ class GameDisplayEngine:
     def __init__(self, vis_type: Literal['pygame', 'console'] = None, window_size: int = 600):
         self.vis_type = "pygame" if vis_type is None else vis_type
         self.window_size = window_size
+        self.sidebar_width = 200  # Width for the sidebar
+        self.sidebar_height = window_size + 50  # Extend sidebar height
         if pygame is None:
             self.vis_type = 'console'
             self.screen = None
@@ -36,8 +34,7 @@ class GameDisplayEngine:
             self.block_size = None
         else:
             pygame.init()  # Initialize Pygame
-            self.window_size = window_size
-            self.screen = pygame.display.set_mode((window_size, window_size))
+            self.screen = pygame.display.set_mode((self.window_size + self.sidebar_width, self.sidebar_height))
             self.block_size = self.window_size // 8
         self.selected_piece = None
         self.possible_moves = []  # To track possible moves
@@ -59,8 +56,10 @@ class GameDisplayEngine:
 
     def pyg_get_square(self, pos) -> Tuple[int, int]:
         """Retrieve 2D board coordinates from mouse click events."""
-        # block_size = self.window_size // 8
         x, y = pos
+        # Adjust x coordinate if click is in the sidebar area
+        if x >= self.window_size:
+            return -1, -1  # Invalid square for board
         return x // self.block_size, y // self.block_size
 
     def c_draw_board(self, board: List[List[str]]):
@@ -93,7 +92,10 @@ class GameDisplayEngine:
                     radius=self.block_size // 2 - 5
                 )
 
-        # pygame.display.flip()
+        # Draw the sidebar
+        pygame.draw.rect(self.screen, (50, 50, 50), pygame.Rect(self.window_size, 0, self.sidebar_width, self.sidebar_height))
+
+        pygame.display.flip()
 
     def c_possible_moves_section(self, human_readable_possible_moves: List[str]):
         """Display possible moves in console."""
@@ -106,27 +108,26 @@ class GameDisplayEngine:
         text_y = 10  # Initial y position for text
         for move in human_readable_possible_moves[:10]:  # Show top 10 moves
             text_surface = font.render(move, True, self.TEXT_COLOR)
-            self.screen.blit(text_surface, (self.window_size - 150, text_y))  # Draw on the right side
+            self.screen.blit(text_surface, (self.window_size + 10, text_y))  # Draw on the right side
             text_y += 30  # Space between each line
         pygame.display.flip()
 
     def pyg_overlay_possible_selected_moves(self):
         """Highlight possible moves for the selected piece."""
         if self.selected_piece is not None:
-            block_size = self.window_size // 8
             for move in self.possible_moves:
                 x, y = move
-                rect = pygame.Rect(x * block_size, y * block_size, block_size, block_size)
+                rect = pygame.Rect(x * self.block_size, y * self.block_size, self.block_size, self.block_size)
                 pygame.draw.rect(self.screen, self.POSSIBLE_MOVE_HIGHLIGHT, rect, 5)  # Draw a border for possible moves
             pygame.display.flip()
-
 
     def pyg_handle_click_select_piece(self, pos):
         """
         Select piece with mouse click and highlight possible moves.
         """
-        warn("this function will be replaced or changed", category=DeprecationWarning, stacklevel=2)
         x, y = self.pyg_get_square(pos)
+        if x == -1:  # Click was in the sidebar
+            return  # Ignore clicks in the sidebar
         if self.selected_piece is None:  # Select a piece
             if self.board[y][x] == self.current_player:  # Only allow currently controlling player's pieces to be selected
                 self.selected_piece = (y, x)
@@ -149,8 +150,6 @@ class GameDisplayEngine:
         """
         x, y = self.pyg_get_square(pos)
         if valid_moves:
-            # idea for testing: sort by key=lambda v_move: v_move[0]?
-            # meaning: sort by start row to get the priority on "left oriented" moves first?
             for move in valid_moves:
                 if (y, x) == (move[2], move[3]):
                     return move
@@ -161,9 +160,6 @@ class GameDisplayEngine:
 
     def get_valid_moves(self, selected_piece: Tuple[int, int]) -> List[Tuple[int, int]]:
         """Determine valid moves for the selected piece."""
-        location = f"{self.__class__}.{self.get_valid_moves.__name__}"
-        warn(f"this function, due to the fact that it contains logic for game ruleset, "
-             f"shouldn't be here\n{location}", category=DeprecationWarning, stacklevel=2)
         y, x = selected_piece
         directions = [1, -1]  # Directions for moving down or up the board
         valid_moves = []
@@ -182,21 +178,29 @@ class GameDisplayEngine:
                             valid_moves.append((capture_y, capture_x))  # Add capture move
         return valid_moves
 
-    def move_piece(self, from_pos: Tuple[int, int], to_pos: Tuple[int, int]):
-        """Move a piece on the board and handle capture logic."""
-        location = f"{self.__class__}.{self.get_valid_moves.__name__}"
-        warn(f"this function, due to the fact that it contains logic for game ruleset, "
-             f"shouldn't be here\n{location}", category=DeprecationWarning, stacklevel=2)
+    def move_piece(self, start: Tuple[int, int], end: Tuple[int, int]):
+        """Move a piece on the board."""
+        sy, sx = start
+        ey, ex = end
+        self.board[ey][ex] = self.board[sy][sx]
+        self.board[sy][sx] = ' '  # Remove piece from the original square
 
-        # you may change this to include new position
-        y_from, x_from = from_pos
-        y_to, x_to = to_pos
-        self.board[y_to][x_to] = self.board[y_from][x_from]  # Move piece
-        self.board[y_from][x_from] = ' '  # Empty the original spot
+    def run_game(self):
+        """Main game loop."""
+        self.pyg_display_title()
+        running = True
+        while running:
+            self.pyg_draw_board(self.board)  # Draw board and pieces
+            self.pyg_draw_possible_moves_section(["Move: ({}, {}) to ({}, {})".format(start[0], start[1], end[0], end[1]) for start, end in self.possible_moves])
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    self.pyg_handle_click_select_piece(event.pos)
 
-        # Check for capturing
-        if abs(y_from - y_to) == 2:
-            mid_y = (y_from + y_to) // 2
-            mid_x = (x_from + x_to) // 2
-            self.board[mid_y][mid_x] = ' '  # Remove captured piece
+        pygame.quit()
 
+
+if __name__ == "__main__":
+    display_engine = GameDisplayEngine()
+    display_engine.run_game() 
