@@ -4,7 +4,7 @@ except ImportError:
     pygame = None
 
 from warnings import warn
-from typing import Literal, List, Tuple
+from typing import Literal, List, Dict, Tuple
 
 MOVE_RETURNED_TYPE = tuple[int, int, int, int] | tuple[float, float, float, float]
 
@@ -42,6 +42,62 @@ class GameDisplayEngine:
         self.possible_moves = []  # To track possible moves
         self.board = self.initialize_board()  # Initialize the game board
         self.current_player = 'R'  # Red starts first
+        
+    def draw_quantum_states(self, state_data: Dict[str, List[str]]):
+        """Draw quantum states and corresponding probabilities in three columns."""
+        if self.vis_type == 'console':
+            self.console_draw_quantum_states(state_data)
+        elif self.vis_type == 'pygame':
+            self.pygame_draw_quantum_states(state_data)
+            
+    def console_draw_quantum_states(self, state_data: Dict[str, List[str]]):
+        """Fallback: Draw the quantum states and probabilities in the console."""
+        print(f"{'State':<7} | {'Transition':<20} | {'Probability':<10}")
+        print("-" * 40)
+        for state, (transition, probability) in state_data.items():
+            print(f"{state:<7} | {transition:<20} | {probability:<10}")
+            
+    def pygame_draw_quantum_states(self, state_data: Dict[str, List[str]]):
+        """Draw quantum states and probabilities using Pygame."""
+        y_offset = 20  # Initial vertical position
+        x_offset_state = 50  # Horizontal position for the state column
+        x_offset_transition = 200  # Horizontal position for the transition column
+        x_offset_probability = 450  # Horizontal position for the probability column
+
+        self.screen.fill((0, 0, 0))  # Clear the screen with black background
+
+        # Draw headers
+        headers = [("State", x_offset_state), ("Transition", x_offset_transition), ("Probability", x_offset_probability)]
+        for header, x_pos in headers:
+            header_surface = self.font.render(header, True, self.TEXT_COLOR)
+            self.screen.blit(header_surface, (x_pos, y_offset))
+
+        # Draw a line after the headers
+        pygame.draw.line(self.screen, self.TEXT_COLOR, (x_offset_state, y_offset + 30), (x_offset_probability + 150, y_offset + 30), 2)
+
+        # Increment y position for data
+        y_offset += 50
+
+        # Draw each quantum state and its corresponding data
+        for state, (transition, probability) in state_data.items():
+            # State column
+            state_surface = self.font.render(state, True, self.TEXT_COLOR)
+            self.screen.blit(state_surface, (x_offset_state, y_offset))
+
+            # Transition column
+            transition_surface = self.font.render(transition, True, self.TEXT_COLOR)
+            self.screen.blit(transition_surface, (x_offset_transition, y_offset))
+
+            # Probability column
+            probability_surface = self.font.render(probability, True, self.TEXT_COLOR)
+            self.screen.blit(probability_surface, (x_offset_probability, y_offset))
+
+            # Move to next row
+            y_offset += 40
+
+        pygame.display.flip()
+
+            
 
     def initialize_board(self) -> List[List[str]]:
         """Initialize the checkers board with pieces."""
