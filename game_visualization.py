@@ -4,9 +4,12 @@ except ImportError:
     pygame = None
 
 from warnings import warn
-from typing import Literal, List, Dict, Tuple
+from typing import Literal, List, Tuple
 
 MOVE_RETURNED_TYPE = tuple[int, int, int, int] | tuple[float, float, float, float]
+BOARD_TYPEHINT = list[list[str]]
+STATE_DATA_TYPEHINT = list[str, str, str]
+
 
 class GameDisplayEngine:
     """
@@ -25,7 +28,9 @@ class GameDisplayEngine:
         "G": (0, 255, 0),      # GREEN_HINT_COLOR
     }
 
-    def __init__(self, vis_type: Literal['pygame', 'console'] = None, window_size: int = 600):
+    START_CORNER_BOARD = ()
+
+    def __init__(self, vis_type: Literal['pygame', 'console'] | str = None, window_size: int = 600):
         self.vis_type = "pygame" if vis_type is None else vis_type
         self.window_size = window_size
         if pygame is None:
@@ -40,24 +45,25 @@ class GameDisplayEngine:
             self.block_size = self.window_size // 8
         self.selected_piece = None
         self.possible_moves = []  # To track possible moves
-        self.board = self.initialize_board()  # Initialize the game board
-        self.current_player = 'R'  # Red starts first
-        
-    def draw_quantum_states(self, state_data: Dict[str, List[str]]):
+
+        self.quantum_font = pygame.font.SysFont('sans mono', 24)
+
+    def draw_quantum_states(self, state_data: STATE_DATA_TYPEHINT):
         """Draw quantum states and corresponding probabilities in three columns."""
         if self.vis_type == 'console':
-            self.console_draw_quantum_states(state_data)
+            self.c_draw_quantum_states(state_data)
         elif self.vis_type == 'pygame':
-            self.pygame_draw_quantum_states(state_data)
-            
-    def console_draw_quantum_states(self, state_data: Dict[str, List[str]]):
+            self.pyg_draw_quantum_states(state_data)
+
+    @staticmethod
+    def c_draw_quantum_states(state_data: STATE_DATA_TYPEHINT):
         """Fallback: Draw the quantum states and probabilities in the console."""
         print(f"{'State':<7} | {'Transition':<20} | {'Probability':<10}")
         print("-" * 40)
-        for state, (transition, probability) in state_data.items():
+        for state, transition, probability in state_data:
             print(f"{state:<7} | {transition:<20} | {probability:<10}")
-            
-    def pygame_draw_quantum_states(self, state_data: Dict[str, List[str]]):
+
+    def pyg_draw_quantum_states(self, state_data: STATE_DATA_TYPEHINT):
         """Draw quantum states and probabilities using Pygame."""
         y_offset = 20  # Initial vertical position
         x_offset_state = 50  # Horizontal position for the state column
@@ -69,48 +75,38 @@ class GameDisplayEngine:
         # Draw headers
         headers = [("State", x_offset_state), ("Transition", x_offset_transition), ("Probability", x_offset_probability)]
         for header, x_pos in headers:
-            header_surface = self.font.render(header, True, self.TEXT_COLOR)
+            header_surface = self.quantum_font.render(header, True, self.TEXT_COLOR)
             self.screen.blit(header_surface, (x_pos, y_offset))
 
         # Draw a line after the headers
-        pygame.draw.line(self.screen, self.TEXT_COLOR, (x_offset_state, y_offset + 30), (x_offset_probability + 150, y_offset + 30), 2)
+        pygame.draw.line(
+            self.screen, self.TEXT_COLOR,
+            start_pos=(x_offset_state, y_offset + 30),
+            end_pos=(x_offset_probability + 150, y_offset + 30),
+            width=2
+        )
 
         # Increment y position for data
         y_offset += 50
 
         # Draw each quantum state and its corresponding data
-        for state, (transition, probability) in state_data.items():
+        for state, transition, probability in state_data:
             # State column
-            state_surface = self.font.render(state, True, self.TEXT_COLOR)
+            state_surface = self.quantum_font.render(state, True, self.TEXT_COLOR)
             self.screen.blit(state_surface, (x_offset_state, y_offset))
 
             # Transition column
-            transition_surface = self.font.render(transition, True, self.TEXT_COLOR)
+            transition_surface = self.quantum_font.render(transition, True, self.TEXT_COLOR)
             self.screen.blit(transition_surface, (x_offset_transition, y_offset))
 
             # Probability column
-            probability_surface = self.font.render(probability, True, self.TEXT_COLOR)
+            probability_surface = self.quantum_font.render(probability, True, self.TEXT_COLOR)
             self.screen.blit(probability_surface, (x_offset_probability, y_offset))
 
             # Move to next row
             y_offset += 40
 
         pygame.display.flip()
-
-            
-
-    def initialize_board(self) -> List[List[str]]:
-        """Initialize the checkers board with pieces."""
-        board = [[' ' for _ in range(8)] for _ in range(8)]
-        for row in range(3):
-            for col in range(8):
-                if (row + col) % 2 == 1:
-                    board[row][col] = 'B'  # Black pieces
-        for row in range(5, 8):
-            for col in range(8):
-                if (row + col) % 2 == 1:
-                    board[row][col] = 'R'  # Red pieces
-        return board
 
     def pyg_get_square(self, pos) -> Tuple[int, int]:
         """Retrieve 2D board coordinates from mouse click events."""
@@ -161,7 +157,8 @@ class GameDisplayEngine:
             text_surface = font.render(chr(i + 65), True, self.TEXT_COLOR)  # 65 is ASCII for 'A'
             self.screen.blit(text_surface, (i * self.block_size + 65, self.window_size + 10))  # Adjust position
 
-    def c_possible_moves_section(self, human_readable_possible_moves: List[str]):
+    @staticmethod
+    def c_possible_moves_section(human_readable_possible_moves: MOVE_RETURNED_TYPE):
         """Display possible moves in console."""
         for move in human_readable_possible_moves:
             print(move)
@@ -187,26 +184,6 @@ class GameDisplayEngine:
                 pygame.draw.rect(self.screen, self.POSSIBLE_MOVE_HIGHLIGHT, rect, 5)  # Draw a border for possible moves
             pygame.display.flip()
 
-    def pyg_handle_click_select_piece(self, pos):
-        """
-        Select piece with mouse click and highlight possible moves.
-        """
-        warn("this function will be replaced or changed", category=DeprecationWarning, stacklevel=2)
-        x, y = self.pyg_get_square(pos)
-        if self.selected_piece is None:  # Select a piece
-            if self.board[y][x] == self.current_player:  # Only allow currently controlling player's pieces to be selected
-                self.selected_piece = (y, x)
-                self.possible_moves = self.get_valid_moves(self.selected_piece)  # Get valid moves for selected piece
-                self.pyg_overlay_possible_selected_moves()  # Highlight moves
-        else:  # Move the selected piece
-            if (y, x) in self.possible_moves:
-                self.move_piece(self.selected_piece, (y, x))  # Move piece on the board
-                self.selected_piece = None  # Deselect after move
-                self.possible_moves = []  # Clear possible moves
-                self.current_player = 'B' if self.current_player == 'R' else 'R'  # Switch players
-            else:
-                print("Invalid move!")  # Error feedback
-
     def pyg_handle_click(self, pos, valid_moves) -> MOVE_RETURNED_TYPE | None:
         """
         Check if clicked spot corresponds to some action, and return identifier if it happens so accordingly.
@@ -222,57 +199,3 @@ class GameDisplayEngine:
     def pyg_display_title(self):
         """Set the game window title."""
         pygame.display.set_caption(self.GAME_TITLE)
-    def get_valid_moves(self, selected_piece: Tuple[int, int]) -> List[Tuple[int, int]]:
-        """Determine valid moves for the selected piece."""
-        location = f"{self.__class__}.{self.get_valid_moves.__name__}"
-        warn(f"this function, due to the fact that it contains logic for game ruleset, "
-             f"shouldn't be here\n{location}", category=DeprecationWarning, stacklevel=2)
-        y, x = selected_piece
-        directions = [1, -1]  # Directions for moving down or up the board
-        valid_moves = []
-        for direction in directions:
-            for dx in [-1, 1]:  # Left and right
-                new_y = y + direction
-                new_x = x + dx
-                if 0 <= new_y < 8 and 0 <= new_x < 8 and self.board[new_y][new_x] == ' ':
-                    valid_moves.append((new_y, new_x))  # Add valid move
-                # Capture move
-                capture_y = y + 2 * direction
-                capture_x = x + 2 * dx
-                if 0 <= new_y < 8 and 0 <= new_x < 8 and 0 <= capture_y < 8 and 0 <= capture_x < 8:
-                    if self.board[new_y][new_x] != ' ' and self.board[capture_y][capture_x] == ' ':
-                        valid_moves.append((capture_y, capture_x))  # Add capture move
-        return valid_moves
-
-    def move_piece(self, from_coords: Tuple[int, int], to_coords: Tuple[int, int]):
-        """Move a piece from one location to another."""
-        y_from, x_from = from_coords
-        y_to, x_to = to_coords
-        self.board[y_to][x_to] = self.board[y_from][x_from]  # Move piece to new location
-        self.board[y_from][x_from] = ' '  # Empty the original spot
-
-    def run(self):
-        """Main game loop for Pygame rendering."""
-        if self.vis_type == 'console':
-            while True:
-                self.c_draw_board(self.board)
-                # Example: handle user input or break loop
-                # Implement your logic for handling user input here
-        elif self.vis_type == 'pygame':
-            self.pyg_display_title()  # Set the game title
-            running = True
-            while running:
-                self.screen.fill((0, 0, 0))  # Fill the screen with black
-                self.pyg_draw_board(self.board)  # Draw the board
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        running = False
-                    elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:  # Left mouse button
-                        pos = pygame.mouse.get_pos()
-                        self.pyg_handle_click_select_piece(pos)  # Handle piece selection
-                pygame.display.flip()  # Update the display
-            pygame.quit()  # Close Pygame
-
-if __name__ == '__main__':
-    engine = GameDisplayEngine(vis_type='pygame', window_size=600)
-    engine.run()

@@ -19,7 +19,7 @@ BOARD_TYPEHINT = list[list[str]]
 class QuantumBot:
     ALLOWED_CONDITION_COUNT = [1, 2, 3]  # 3rd in baking
 
-    def __init__(self, number_of_conditions: int, current_player, current_player_direction, current_enemy_player):
+    def __init__(self, number_of_conditions: int):
         """
         This class serves as the means of gauging probabilities of certain available moves the bot can make
 
@@ -47,9 +47,10 @@ class QuantumBot:
         self.current_job_shots: int | None = None
         self.counts: dict | None = None
 
-        self.enemy = current_enemy_player
-        self.player_identifier = current_player
-        self.direction = current_player_direction
+        self.enemy = None  # current_enemy_player
+        self.player_identifier = None  # current_player
+        self.direction = None  # current_player_direction
+        self.human_readable_predictions: list[str, str, str] | None | list = []
 
         # self.verbose = False  #
         self.verbose = True  #
@@ -70,6 +71,12 @@ class QuantumBot:
     def human_readable_move_format(move: MOVE_TYPEHINT):
         """Returns a human-readable form of possible move."""
         return f"{8-move[0]}{chr(move[1] + 65)} -> {8-move[2]}{chr(move[3] + 65)}"
+
+    def update_current_player_info(self, current_player, current_player_direction, current_enemy_player):
+        """updates player info to gauge what side the bot is controlling"""
+        self.enemy = current_enemy_player
+        self.player_identifier = current_player
+        self.direction = current_player_direction
 
     def _present_full_state(self, state: str):
         "|" + f"{state}".zfill(len(self.board_moves_qbit_register)) + ">"
@@ -406,7 +413,6 @@ class QuantumBot:
         self.master_circuit.compose(diffusion, [*self.board_moves_qbit_register], inplace=True)
         # self.__draw_master_circuit()
 
-
     def __schedule_job_locally(self, shots=10000, seed_simulator=None):
         """
         run circuit measurements locally on your PC with standard settings
@@ -488,6 +494,9 @@ class QuantumBot:
         print(self.counts)
         total_counts_accumulated = 0
         moves_recommended = []
+        if self.valid_moves_with_flags is None:
+            self.human_readable_predictions = []
+
         for state in self.valid_moves_with_flags:
             move = self.valid_moves_with_flags[state][0]
             human_state = "|" + state + ">"
@@ -510,7 +519,7 @@ class QuantumBot:
             human_percentage = f"{fixed_counts//100:2}.{minor}%"
             rec_[-1] = human_percentage
 
-        return moves_recommended
+        self.human_readable_predictions = moves_recommended
 
     def __draw_master_circuit(self):
         """just don't :D"""
@@ -534,10 +543,10 @@ if __name__ == '__main__':
     # board = [[0 for _ in range(8)] for _ in range(8)]  # 8x8 board example
     temporary_board = [
         [' ', 'B', ' ', 'B', ' ', 'B', ' ', 'B'],
-        ['B', ' ', 'B', ' ', ' ', ' ', 'B', ' '],
+        ['B', ' ', ' ', ' ', ' ', ' ', 'B', ' '],
         [' ', ' ', ' ', ' ', ' ', 'B', ' ', 'B'],
         [' ', ' ', 'R', ' ', ' ', ' ', ' ', ' '],
-        [' ', ' ', ' ', ' ', ' ', 'R', ' ', ' '],
+        [' ', ' ', ' ', 'B', ' ', 'R', ' ', ' '],
         ['R', ' ', 'R', ' ', ' ', ' ', 'R', ' '],
         [' ', 'R', ' ', ' ', ' ', 'R', ' ', 'R'],
         ['R', ' ', 'R', ' ', 'R', ' ', 'R', ' ']
