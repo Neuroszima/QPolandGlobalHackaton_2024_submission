@@ -36,7 +36,7 @@ class GameDisplayEngine:
         else:
             pygame.init()  # Initialize Pygame
             self.window_size = window_size
-            self.screen = pygame.display.set_mode((window_size + 200, window_size + 50))  # Extend window size and height
+            self.screen = pygame.display.set_mode((window_size + 300, window_size + 50))  # Extend window size and height
             self.block_size = self.window_size // 8
         self.selected_piece = None
         self.possible_moves = []  # To track possible moves
