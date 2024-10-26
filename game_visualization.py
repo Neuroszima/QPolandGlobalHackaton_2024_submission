@@ -19,34 +19,47 @@ class GameDisplayEngine:
     """
     GAME_TITLE = "Checkers Game"
     LIGHT_BOARD_COLOR = (255, 255, 255)
-    DARK_BOARD_COLOR = (169, 169, 169)
+    DARK_BOARD_COLOR = (150, 150, 150)
     POSSIBLE_MOVE_HIGHLIGHT = (0, 255, 0)  # Green square - move is possible for current player on that board space
-    TEXT_COLOR = (255, 255, 255)  # Changed to white for better visibility
+    TEXT_COLOR = (152, 245, 249)  # Changed to white for better visibility
+    QUANTUM_TEXT_COLOR = (152, 245, 249)  # Changed to white for better visibility
     COLORS_OF_PIECES = {
-        "B": (105, 105, 105),  # BLACK_PIECE_COLOR
+        "B": (95, 95, 95),     # BLACK_PIECE_COLOR
         "R": (255, 0, 0),      # RED_PIECE_COLOR
         "G": (0, 255, 0),      # GREEN_HINT_COLOR
     }
 
-    START_CORNER_BOARD = ()
+    # below are starting and end points of render spaces for certain elements of the display
+    # convention: (start_x, start_y, end_x, end_y)
+    BOARD_VERTICAL_ANNOTATION_RENDER_SPACE = (0, 0, 50, 800)
+    BOARD_HORIZONTAL_ANNOTATION_RENDER_SPACE = (50, 800, 800, 850)
+    BOARD_RENDER_SPACE = (50, 0, 850, 800)
+    QUANTUM_STATE_RENDER_SPACE = (850, 0, 1250, 800)
 
-    def __init__(self, vis_type: Literal['pygame', 'console'] | str = None, window_size: int = 600):
+    def __init__(self, vis_type: Literal['pygame', 'console'] | str = None):
         self.vis_type = "pygame" if vis_type is None else vis_type
-        self.window_size = window_size
         if pygame is None:
             self.vis_type = 'console'
             self.screen = None
-            self.window_size = None
+            self.board_pixel_size = None
             self.block_size = None
+            self.font_size = None
+            self.quantum_font = None
         else:
+            if not ((self.BOARD_RENDER_SPACE[3] - self.BOARD_RENDER_SPACE[1])
+                    == (self.BOARD_RENDER_SPACE[2] - self.BOARD_RENDER_SPACE[0])):
+                raise RuntimeError("Board space is not a square")
             pygame.init()  # Initialize Pygame
-            self.window_size = window_size
-            self.screen = pygame.display.set_mode((window_size + 300, window_size + 50))  # Extend window size and height
-            self.block_size = self.window_size // 8
+            self.board_pixel_size = self.BOARD_RENDER_SPACE[3] - self.BOARD_RENDER_SPACE[1]
+            # Extend window size and height
+            self.screen = pygame.display.set_mode((self.calculate_screen_size()))  # to fill
+            self.block_size = self.board_pixel_size // 8
+            self.font_size = 24
+            self.quantum_font = pygame.font.SysFont('lucidaconsole', self.font_size)
+
         self.selected_piece = None
         self.possible_moves = []  # To track possible moves
 
-        self.quantum_font = pygame.font.SysFont('sans mono', 24)
 
     def draw_quantum_states(self, state_data: STATE_DATA_TYPEHINT):
         """Draw quantum states and corresponding probabilities in three columns."""
@@ -54,6 +67,25 @@ class GameDisplayEngine:
             self.c_draw_quantum_states(state_data)
         elif self.vis_type == 'pygame':
             self.pyg_draw_quantum_states(state_data)
+
+    def calculate_screen_size(self):
+        """based on rendered elements, get the maximum display size that comforts all the rendered elements"""
+        elements = [
+            self.BOARD_VERTICAL_ANNOTATION_RENDER_SPACE,
+            self.BOARD_RENDER_SPACE,
+            self.QUANTUM_STATE_RENDER_SPACE,
+            self.BOARD_HORIZONTAL_ANNOTATION_RENDER_SPACE
+        ]
+        # convention: (start_x, start_y, end_x, end_y)
+        max_x = 0
+        max_y = 0
+        for e in elements:
+            if e[2] > max_x:
+                max_x = e[2]
+            if e[3] > max_y:
+                max_y = e[3]
+
+        return max_x, max_y
 
     @staticmethod
     def c_draw_quantum_states(state_data: STATE_DATA_TYPEHINT):
@@ -65,46 +97,59 @@ class GameDisplayEngine:
 
     def pyg_draw_quantum_states(self, state_data: STATE_DATA_TYPEHINT):
         """Draw quantum states and probabilities using Pygame."""
-        y_offset = 20  # Initial vertical position
-        x_offset_state = 50  # Horizontal position for the state column
-        x_offset_transition = 200  # Horizontal position for the transition column
-        x_offset_probability = 450  # Horizontal position for the probability column
+        x_offset_state = 5  # Horizontal position for the state column
+        x_offset_board_move = 125  # Horizontal position for the board move column
+        x_offset_probability = 230  # Horizontal position for the probability column
 
-        self.screen.fill((0, 0, 0))  # Clear the screen with black background
+        # self.screen.fill((0, 0, 0))  # Clear the screen with black background
+        start_x, start_y, end_x, end_y = self.QUANTUM_STATE_RENDER_SPACE
 
+        headers_y = 20
         # Draw headers
-        headers = [("State", x_offset_state), ("Transition", x_offset_transition), ("Probability", x_offset_probability)]
+        headers = [
+            # additional pixel distance is required for "centering" and spacing of header display
+            ("Q-State", x_offset_state + 5),
+            ("Move", x_offset_board_move + 40),
+            ("Q-Prob.", x_offset_probability + 50)
+        ]
         for header, x_pos in headers:
             header_surface = self.quantum_font.render(header, True, self.TEXT_COLOR)
-            self.screen.blit(header_surface, (x_pos, y_offset))
+            self.screen.blit(header_surface, (start_x + x_pos, start_y + headers_y))
 
         # Draw a line after the headers
         pygame.draw.line(
             self.screen, self.TEXT_COLOR,
-            start_pos=(x_offset_state, y_offset + 30),
-            end_pos=(x_offset_probability + 150, y_offset + 30),
+            start_pos=(start_x, start_y + 60),
+            end_pos=(end_x, start_y + 60),
             width=2
         )
 
-        # Increment y position for data
-        y_offset += 50
+        y_columns_start = 85
+        y_row_sepearation = self.font_size + 8
+        try:
+            text_size = len(state_data[0][0])
+        except IndexError:  # no human-readable format has been calculated yet
+            text_size = 0
+
+        if text_size == 5:
+            centering_factor_state = 10
+        else:
+            centering_factor_state = 5
 
         # Draw each quantum state and its corresponding data
-        for state, transition, probability in state_data:
+        for i, (state, transition, probability) in enumerate(state_data):
+            row_y = start_y + y_columns_start + y_row_sepearation * i
             # State column
             state_surface = self.quantum_font.render(state, True, self.TEXT_COLOR)
-            self.screen.blit(state_surface, (x_offset_state, y_offset))
+            self.screen.blit(state_surface, (start_x + x_offset_state + centering_factor_state, row_y))
 
             # Transition column
             transition_surface = self.quantum_font.render(transition, True, self.TEXT_COLOR)
-            self.screen.blit(transition_surface, (x_offset_transition, y_offset))
+            self.screen.blit(transition_surface, (start_x + x_offset_board_move + 10, row_y))
 
             # Probability column
             probability_surface = self.quantum_font.render(probability, True, self.TEXT_COLOR)
-            self.screen.blit(probability_surface, (x_offset_probability, y_offset))
-
-            # Move to next row
-            y_offset += 40
+            self.screen.blit(probability_surface, (start_x + x_offset_probability + 50, row_y))
 
         pygame.display.flip()
 
@@ -155,7 +200,7 @@ class GameDisplayEngine:
         # Draw column letters (A to H) at the bottom
         for i in range(8):
             text_surface = font.render(chr(i + 65), True, self.TEXT_COLOR)  # 65 is ASCII for 'A'
-            self.screen.blit(text_surface, (i * self.block_size + 65, self.window_size + 10))  # Adjust position
+            self.screen.blit(text_surface, (i * self.block_size + 65, self.board_pixel_size + 10))  # Adjust position
 
     @staticmethod
     def c_possible_moves_section(human_readable_possible_moves: MOVE_RETURNED_TYPE):
@@ -163,17 +208,19 @@ class GameDisplayEngine:
         for move in human_readable_possible_moves:
             print(move)
 
-    def pyg_draw_possible_moves_section(self, human_readable_possible_moves: List[str]):
-        """Draw possible moves on the side of the board."""
-        font = pygame.font.Font(None, 36)  # Use default font
-        text_y = 10  # Initial y position for text
-        max_text_height = self.window_size  # Limit to the height of the board
-        max_moves = (max_text_height - 10) // 30  # Calculate how many moves can fit
-        for move in human_readable_possible_moves[:max_moves]:  # Show only as many moves as fit vertically
-            text_surface = font.render(move, True, self.TEXT_COLOR)
-            self.screen.blit(text_surface, (self.window_size + 10, text_y))  # Draw on the right side
-            text_y += 30  # Space between each line
-        pygame.display.flip()
+    # player doesn't need to have all the available moves highlighted by drawing text representations
+    # instead -> make drawing hints
+    # def pyg_draw_possible_moves_section(self, human_readable_possible_moves: List[str]):
+    #     """Draw possible moves on the side of the board."""
+    #     font = pygame.font.Font(None, 36)  # Use default font
+    #     text_y = 10  # Initial y position for text
+    #     max_text_height = self.board_pixel_size  # Limit to the height of the board
+    #     max_moves = (max_text_height - 10) // 30  # Calculate how many moves can fit
+    #     for move in human_readable_possible_moves[:max_moves]:  # Show only as many moves as fit vertically
+    #         text_surface = font.render(move, True, self.TEXT_COLOR)
+    #         self.screen.blit(text_surface, (self.board_pixel_size + 10, text_y))  # Draw on the right side
+    #         text_y += 30  # Space between each line
+    #     pygame.display.flip()
 
     def pyg_overlay_possible_selected_moves(self):
         """Highlight possible moves for the selected piece."""

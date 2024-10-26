@@ -87,7 +87,6 @@ class CheckersGame:
         for k in moves_dict:
             # if at board, is it empty?
             if moves_dict[k][1]:
-                print(moves_dict[k][0])
                 row_, col_ = moves_dict[k][0]
                 moves_dict[k][1] = self.board[row_][col_] == " "  # unobstructed -> valid move
 
