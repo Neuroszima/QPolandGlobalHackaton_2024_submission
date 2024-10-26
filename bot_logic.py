@@ -19,7 +19,7 @@ BOARD_TYPEHINT = list[list[str]]
 class QuantumBot:
     ALLOWED_CONDITION_COUNT = [1, 2, 3]  # 3rd in baking
 
-    def __init__(self, number_of_conditions: int, current_player, current_player_direction, current_enemy_player):
+    def __init__(self, number_of_conditions: int):
         """
         This class serves as the means of gauging probabilities of certain available moves the bot can make
 
@@ -33,7 +33,7 @@ class QuantumBot:
         these conditions will be added in "quantum accumulator", that then will be used in state flagging on certain
         condition (for example -> mark all the states that got at least one condition right)
         """
-        if not number_of_conditions in self.ALLOWED_CONDITION_COUNT:
+        if number_of_conditions not in self.ALLOWED_CONDITION_COUNT:
             raise ValueError(f"number_of_conditions should be one of: {self.ALLOWED_CONDITION_COUNT}")
         self.master_circuit: QuantumCircuit | None = None
         self.board_moves_qbit_register: QuantumRegister | None = None
@@ -47,16 +47,20 @@ class QuantumBot:
         self.current_job_shots: int | None = None
         self.counts: dict | None = None
 
-        self.enemy = current_enemy_player
-        self.player_identifier = current_player
-        self.direction = current_player_direction
+        self.enemy = None  # current_enemy_player
+        self.player_identifier = None  # current_player
+        self.direction = None  # current_player_direction
+        self.human_readable_predictions: list[str, str, str] | None | list = []
 
         # self.verbose = False  #
         self.verbose = True  #
 
     @staticmethod
     def q_minimal_board_move_alloc(valid_moves_count: int):
-        return floor(log2(valid_moves_count))+1
+        if valid_moves_count > 2:
+            return floor(log2(valid_moves_count))+1
+        else:
+            return 1
 
     @staticmethod
     def _check_out_of_border(col, row):
@@ -71,6 +75,12 @@ class QuantumBot:
         """Returns a human-readable form of possible move."""
         return f"{8-move[0]}{chr(move[1] + 65)} -> {8-move[2]}{chr(move[3] + 65)}"
 
+    def update_current_player_info(self, current_player, current_player_direction, current_enemy_player):
+        """updates player info to gauge what side the bot is controlling"""
+        self.enemy = current_enemy_player
+        self.player_identifier = current_player
+        self.direction = current_player_direction
+
     def _present_full_state(self, state: str):
         "|" + f"{state}".zfill(len(self.board_moves_qbit_register)) + ">"
 
@@ -83,7 +93,7 @@ class QuantumBot:
         else:
             self.quantum_adder_register = QuantumRegister(3, name="add")  # quantum counting up to 7
 
-        self.results_register = ClassicalRegister(moves_q_alloc , name="meas.")  # + self.number_of_conditions + 2
+        self.results_register = ClassicalRegister(moves_q_alloc, name="meas.")  # + self.number_of_conditions + 2
         self.ancilla_register = QuantumRegister(1, name="anc")  # extra qbit for Z-flip action
         self.condition_register = QuantumRegister(self.number_of_conditions, name="condi")
 
@@ -186,8 +196,8 @@ class QuantumBot:
             # moving only one field with check, since we have to include check for
             direction_col = int((fin_col - start_col) / abs(fin_col - start_col))
             # conditions
-            test_col_1 = fin_col - direction_col # horizontal direction
-            test_col_2 = fin_col + direction_col # horizontal direction
+            test_col_1 = fin_col - direction_col  # horizontal direction
+            test_col_2 = fin_col + direction_col  # horizontal direction
             test_row_enemy = fin_row + self.direction
             if not self._check_out_of_border(test_col_1, test_row_enemy):  # perpendicular check
                 if board[test_row_enemy][start_col] == self.enemy:
@@ -212,15 +222,14 @@ class QuantumBot:
         return assigned_states_to_fill
 
     def condition_can_beat(
-            self, board: BOARD_TYPEHINT, assigned_states_to_fill: ASSIGNED_STATES_TYPEHINT, condition_num=3):
-        """prepare condition for beating opponent checker!"""
+            self, assigned_states_to_fill: ASSIGNED_STATES_TYPEHINT, condition_num=3):
+        """Flag condition for beating opponent checker!"""
         for state in assigned_states_to_fill:
             move = assigned_states_to_fill[state][0]
-            print(self.human_readable_move_format(move))
             fin_col, fin_row = move[3], move[2]
             start_col, start_row = move[1], move[0]
             if abs(fin_row - start_row) > 1:
-                assigned_states_to_fill[state][condition_num] = 1  # it is an ok move -> approved to move like that
+                assigned_states_to_fill[state][condition_num] = 1
 
         return assigned_states_to_fill
 
@@ -248,7 +257,8 @@ class QuantumBot:
 
         for state in prepared_assigned_states:
             check_circuit.barrier()
-            for flag_index, flag in enumerate(prepared_assigned_states[state][1:-1]):  # absolut last elem. is "prob. placeholder"
+            # absolute last elem. is "prob. placeholder"
+            for flag_index, flag in enumerate(prepared_assigned_states[state][1:-1]):
                 if flag:
                     for invert_index, c in enumerate(reversed(state)):
                         if c == "0":
@@ -260,7 +270,6 @@ class QuantumBot:
                     for invert_index, c in enumerate(reversed(state)):
                         if c == "0":
                             check_circuit.append(XGate(), [self.board_moves_qbit_register[invert_index]])
-        # self.__draw_circuit(check_circuit)
 
         return check_circuit
 
@@ -312,7 +321,6 @@ class QuantumBot:
             adder_circuit.append(
                 gate, [qbit, *control_adder_qbits, self.quantum_adder_register[target_adder_bit]]
             )
-        # self.__draw_circuit(adder_circuit)
 
         return adder_circuit
 
@@ -341,7 +349,6 @@ class QuantumBot:
             adder_check_circuit.append(C3XGate, [*self.quantum_adder_register, *self.ancilla_register])
         elif adder_len == 2:
             adder_check_circuit.append(C2XGate, [*self.quantum_adder_register, *self.ancilla_register])
-        # self.__draw_circuit(adder_check_circuit)
 
         return adder_check_circuit
 
@@ -385,7 +392,6 @@ class QuantumBot:
         self.master_circuit.compose(
             condition_check_circuit, [*self.board_moves_qbit_register, *self.condition_register], inplace=True)
         self.master_circuit.barrier()
-        # self.__draw_master_circuit()
         self.master_circuit.compose(
             adder_circuit, [*self.condition_register, *self.quantum_adder_register], inplace=True)
 
@@ -404,8 +410,6 @@ class QuantumBot:
         self.master_circuit.barrier()
 
         self.master_circuit.compose(diffusion, [*self.board_moves_qbit_register], inplace=True)
-        # self.__draw_master_circuit()
-
 
     def __schedule_job_locally(self, shots=10000, seed_simulator=None):
         """
@@ -429,11 +433,11 @@ class QuantumBot:
         self.q_initialize()
         self.valid_moves_with_flags = self.assign_valid_board_moves_to_q_states(valid_moves_list)
         self.valid_moves_with_flags = self.condition_piece_shielded(
-            board, self.valid_moves_with_flags,condition_num=1)
+            board, self.valid_moves_with_flags, condition_num=1)
         self.valid_moves_with_flags = self.condition_moves_to_be_beaten(
             board, self.valid_moves_with_flags, condition_num=2)
         self.valid_moves_with_flags = self.condition_can_beat(
-            board, self.valid_moves_with_flags, condition_num=3)
+            self.valid_moves_with_flags, condition_num=3)
 
         # prepare entire diffusion circuit based on flagged conditions
         # ATTENTION!!!, ORDER, "MAGIC NUMBER", AND NUMBER OF ITERATIONS HAS BIG IMPACT!!!
@@ -459,7 +463,10 @@ class QuantumBot:
         moves_recommended = []
         for state in self.valid_moves_with_flags:
             move = self.valid_moves_with_flags[state][0]
-            counts = self.counts[state]
+            try:
+                counts = self.counts[state]
+            except KeyError:  # 0 counts because there was no chance for the state to emerge
+                counts = 0
             total_counts_accumulated += counts
             self.valid_moves_with_flags[state][-1] = counts
             moves_recommended.append([move, counts])
@@ -488,6 +495,9 @@ class QuantumBot:
         print(self.counts)
         total_counts_accumulated = 0
         moves_recommended = []
+        if self.valid_moves_with_flags is None:
+            self.human_readable_predictions = []
+
         for state in self.valid_moves_with_flags:
             move = self.valid_moves_with_flags[state][0]
             human_state = "|" + state + ">"
@@ -510,7 +520,7 @@ class QuantumBot:
             human_percentage = f"{fixed_counts//100:2}.{minor}%"
             rec_[-1] = human_percentage
 
-        return moves_recommended
+        self.human_readable_predictions = moves_recommended
 
     def __draw_master_circuit(self):
         """just don't :D"""
@@ -534,10 +544,10 @@ if __name__ == '__main__':
     # board = [[0 for _ in range(8)] for _ in range(8)]  # 8x8 board example
     temporary_board = [
         [' ', 'B', ' ', 'B', ' ', 'B', ' ', 'B'],
-        ['B', ' ', 'B', ' ', ' ', ' ', 'B', ' '],
+        ['B', ' ', ' ', ' ', ' ', ' ', 'B', ' '],
         [' ', ' ', ' ', ' ', ' ', 'B', ' ', 'B'],
         [' ', ' ', 'R', ' ', ' ', ' ', ' ', ' '],
-        [' ', ' ', ' ', ' ', ' ', 'R', ' ', ' '],
+        [' ', ' ', ' ', 'B', ' ', 'R', ' ', ' '],
         ['R', ' ', 'R', ' ', ' ', ' ', 'R', ' '],
         [' ', 'R', ' ', ' ', ' ', 'R', ' ', 'R'],
         ['R', ' ', 'R', ' ', 'R', ' ', 'R', ' ']
@@ -546,10 +556,36 @@ if __name__ == '__main__':
     c_game.calculate_current_valid_moves()
     print(c_game.valid_moves)
     print(c_game.human_readable_possible_moves())
-    q_bot = QuantumBot(3, c_game.current_player, c_game.current_player_direction, c_game.current_enemy_player)
+    q_bot = QuantumBot(3)
+
+    # as players enemy
+    q_bot.update_current_player_info(
+        current_player=c_game.STARTING_ENEMY,
+        current_enemy_player=c_game.STARTING_PLAYER,
+        current_player_direction=c_game.PLAYER_BOARD_DIRECTION[
+            c_game.STARTING_ENEMY]
+    )
     q_bot.calculate_recommendations(
         c_game.valid_moves, c_game.board
     )
+    q_bot.parse_recommendations_human_readable()
+
     print(q_bot.valid_moves_with_flags)
-    for rec in q_bot.parse_recommendations_human_readable():
+    for rec in q_bot.human_readable_predictions:
+        print(rec)
+
+    # as player
+    q_bot.update_current_player_info(
+        current_player=c_game.STARTING_PLAYER,
+        current_enemy_player=c_game.STARTING_ENEMY,
+        current_player_direction=c_game.PLAYER_BOARD_DIRECTION[
+            c_game.STARTING_PLAYER]
+    )
+    q_bot.calculate_recommendations(
+        c_game.valid_moves, c_game.board
+    )
+    q_bot.parse_recommendations_human_readable()
+
+    print(q_bot.valid_moves_with_flags)
+    for rec in q_bot.human_readable_predictions:
         print(rec)
