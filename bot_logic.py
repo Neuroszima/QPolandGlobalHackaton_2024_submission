@@ -511,6 +511,10 @@ class QuantumBot:
 
         moves_recommended.sort(key=lambda rec_: -rec_[-1])
 
+        if len(self.valid_moves_with_flags) == 0:
+            self.human_readable_predictions = moves_recommended
+            return
+
         total_counts_accumulated = (
            self.current_job_shots - total_counts_accumulated) // len(self.valid_moves_with_flags)
         for rec_ in moves_recommended:
