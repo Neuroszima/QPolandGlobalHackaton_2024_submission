@@ -36,14 +36,35 @@ class Game:
         # FOLLOWING IS BARELY MINIMUM!!! NEED MORE CAREFUL!!!
         self.game_rulesystem.clean_hints()
         self.game_rulesystem.switch_player()
+        self.game_rulesystem.selected_piece = None
+        self.game_rulesystem.hints_for_selection = None
         self.turn_start = True  # for all "next turn" actions to be triggered
+
+    def bot_move(self):
+        """execute chain of events that bot does"""
+        # we execute bot controls and movements -> black pieces
+        self.q_bot.calculate_recommendations(
+            self.game_rulesystem.valid_moves,
+            self.game_rulesystem.board
+        )
+        self.q_bot.parse_recommendations_human_readable()
+        self.game_interaction_engine.pyg_draw_quantum_states(self.q_bot.human_readable_predictions)
+        best_moves = self.q_bot.parse_recommendations_bot_use()
+        to_execute = best_moves[0][0]  # top of the list and 0 column (move)
+        self.game_rulesystem.execute_move(*to_execute)
+        self.end_turn_cleanup()
 
     def pyg_main(self):
         """Main game loop for Pygame players"""
         self.running = True
         pygame.init()
+
         while self.running:
-            self.game_interaction_engine.pyg_draw_board(self.game_rulesystem.board)
+            self.game_interaction_engine.pyg_draw_board(
+                self.game_rulesystem.board,
+                self.game_rulesystem.selected_piece,
+                self.game_rulesystem.hints_for_selection
+            )
             self.game_interaction_engine.pyg_draw_quantum_states(self.q_bot.human_readable_predictions)
             if self.turn_start:
                 # this will make calculation only happen once
@@ -57,23 +78,22 @@ class Game:
                     if event.type == pygame.QUIT:
                         self.running = False
                     elif event.type == pygame.MOUSEBUTTONDOWN:
-                        move = self.game_interaction_engine.pyg_handle_click(
-                            event.pos, self.game_rulesystem.valid_moves)
-                        if move:
-                            self.game_rulesystem.execute_move(*move)
-                            self.end_turn_cleanup()
+                        event_coordinates, game_event = self.game_interaction_engine.pyg_handle_click(event.pos)
+                        if game_event == "board":
+                            if not self.game_rulesystem.selected_piece:
+                                self.game_rulesystem.selected_piece = event_coordinates
+                                self.game_rulesystem.calculate_hints_for_selection()
+                            else:
+                                # player decision
+                                if event_coordinates in self.game_rulesystem.hints_for_selection:
+                                    to_execute = (*self.game_rulesystem.selected_piece, *event_coordinates)
+                                    self.game_rulesystem.execute_move(*to_execute)
+                                    self.end_turn_cleanup()
+                                else:
+                                    self.game_rulesystem.selected_piece = None
+                                    self.game_rulesystem.hints_for_selection = None
             else:
-                # we execute bot controls and movements -> black pieces
-                self.q_bot.calculate_recommendations(
-                    self.game_rulesystem.valid_moves,
-                    self.game_rulesystem.board
-                )
-                self.q_bot.parse_recommendations_human_readable()
-                self.game_interaction_engine.pyg_draw_quantum_states(self.q_bot.human_readable_predictions)
-                best_moves = self.q_bot.parse_recommendations_bot_use()
-                to_execute = best_moves[0][0]  # top of the list and 0 column (move)
-                self.game_rulesystem.execute_move(*to_execute)
-                self.end_turn_cleanup()
+                self.bot_move()
 
             pygame.display.flip()
 

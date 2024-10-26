@@ -32,6 +32,7 @@ class CheckersGame:
         self.calculate_current_valid_moves()
 
         self.selected_piece: tuple[int, int] | None = None
+        self.hints_for_selection = None
 
     @staticmethod
     def _check_out_of_border(col, row):
@@ -167,11 +168,12 @@ class CheckersGame:
             if self.board[row][col] == "G":
                 self.board[row][col] = " "
 
-    def show_hints_for_selection(self):
+    def calculate_hints_for_selection(self):  # -> list[tuple[int, int]]
         """mark only selections that are """
         p_row, p_col = self.selected_piece
         moves_to_highlight = []
         for valid_move in self.valid_moves:
             if (valid_move[0] == p_row) and (valid_move[1] == p_col):
-                self.board[valid_move[2]][valid_move[3]] = "G"
+                moves_to_highlight.append((valid_move[2], valid_move[3]))
+        self.hints_for_selection = moves_to_highlight
 
