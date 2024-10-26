@@ -52,6 +52,7 @@ class Game:
         best_moves = self.q_bot.parse_recommendations_bot_use()
         to_execute = best_moves[0][0]  # top of the list and 0 column (move)
         self.game_rulesystem.execute_move(*to_execute)
+        self.game_rulesystem.save_last_move_coordinates(*to_execute)
         self.end_turn_cleanup()
 
     def pyg_main(self):
@@ -63,7 +64,8 @@ class Game:
             self.game_interaction_engine.pyg_draw_board(
                 self.game_rulesystem.board,
                 self.game_rulesystem.selected_piece,
-                self.game_rulesystem.hints_for_selection
+                self.game_rulesystem.hints_for_selection,
+                self.game_rulesystem.previous_move_coordinates
             )
             self.game_interaction_engine.pyg_draw_quantum_states(self.q_bot.human_readable_predictions)
             if self.turn_start:

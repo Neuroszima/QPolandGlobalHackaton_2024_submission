@@ -19,11 +19,11 @@ class GameDisplayEngine:
     """
     GAME_TITLE = "Checkers Game"
     LIGHT_BOARD_COLOR = (255, 255, 255)
-    DARK_BOARD_COLOR = (150, 150, 150)
-    POSSIBLE_MOVE_HIGHLIGHT = (0, 255, 0)  # Green square - move is possible for current player on that board space
-    TEXT_COLOR = (152, 245, 249)  # Changed to white for better visibility
-    BOARD_MARKER_TEXT_COLOR = (204, 255, 255)
+    DARK_BOARD_COLOR = (140, 140, 140)
+    POSSIBLE_MOVE_HIGHLIGHT = (0, 255, 0)  # for now it is green but can be any
     QUANTUM_TEXT_COLOR = (152, 245, 249)  # Changed to white for better visibility
+    BOARD_MARKER_TEXT_COLOR = (204, 255, 255)  # very light blue/violet
+    LAST_MOVE_HIGHLIGHT_COLOR = (255, 166, 77)  # for now this will be yellow/orange
     COLORS_OF_PIECES = {
         "B": (95, 95, 95),     # BLACK_PIECE_COLOR
         "R": (255, 0, 0),      # RED_PIECE_COLOR
@@ -187,12 +187,12 @@ class GameDisplayEngine:
             ("Q-Prob.", x_offset_probability + 50)
         ]
         for header, x_pos in headers:
-            header_surface = self.quantum_font.render(header, True, self.TEXT_COLOR)
+            header_surface = self.quantum_font.render(header, True, self.QUANTUM_TEXT_COLOR)
             self.screen.blit(header_surface, (start_x + x_pos, start_y + headers_y))
 
         # Draw a line after the headers
         pygame.draw.line(
-            self.screen, self.TEXT_COLOR,
+            self.screen, self.QUANTUM_TEXT_COLOR,
             start_pos=(start_x, start_y + 60),
             end_pos=(end_x, start_y + 60),
             width=2
@@ -213,17 +213,22 @@ class GameDisplayEngine:
         # Draw each quantum state and its corresponding data
         for i, (state, transition, probability) in enumerate(state_data):
             row_y = start_y + y_columns_start + y_row_separation * i
+
+            if i == 0:
+                t_color = self.LAST_MOVE_HIGHLIGHT_COLOR
+            else:
+                t_color = self.QUANTUM_TEXT_COLOR
             
             # State column
-            state_surface = self.quantum_font.render(state, True, self.TEXT_COLOR)
+            state_surface = self.quantum_font.render(state, True, t_color)
             self.screen.blit(state_surface, (start_x + x_offset_state + centering_factor_state, row_y))
 
             # Transition column
-            transition_surface = self.quantum_font.render(transition, True, self.TEXT_COLOR)
+            transition_surface = self.quantum_font.render(transition, True, t_color)
             self.screen.blit(transition_surface, (start_x + x_offset_board_move + 10, row_y))
 
             # Probability column
-            probability_surface = self.quantum_font.render(probability, True, self.TEXT_COLOR)
+            probability_surface = self.quantum_font.render(probability, True, t_color)
             self.screen.blit(probability_surface, (start_x + x_offset_probability + 50, row_y))
 
         pygame.display.flip()
@@ -268,7 +273,7 @@ class GameDisplayEngine:
                 self.BOARD_VERTICAL_ANNOTATION_RENDER_SPACE[1] + self.block_size * (i + 0.5) - self.font_size,
             ))
 
-    def pyg_draw_board(self, board: List[List[str]], selected_piece, hints_for_selection):
+    def pyg_draw_board(self, board: List[List[str]], selected_piece, hints_for_selection, previous_move_coordinates):
         """Draw the base board version in window for pygame type of rendering."""
         for y in range(8):
             for x in range(8):
@@ -291,6 +296,7 @@ class GameDisplayEngine:
         self.pyg_draw_move_hints(selected_piece, hints_for_selection)
         self.pyg_draw_side_board_markers()
         self.pyg_draw_bottom_board_markers()
+        self.pyg_draw_last_player_move(previous_move_coordinates)
 
     def pyg_overlay_possible_selected_moves(self):
         """Highlight possible moves for the selected piece."""
@@ -337,6 +343,23 @@ class GameDisplayEngine:
 
         if hint_coordinates:
             for board_row, board_column in hint_coordinates:
+                self.screen.blit(transparent_hint_surface, dest=(
+                    self.BOARD_RENDER_SPACE[0] + self.block_size * board_column,
+                    self.BOARD_RENDER_SPACE[1] + self.block_size * board_row
+                ))
+
+    def pyg_draw_last_player_move(self, last_moves: list[tuple] | None):
+        """
+        draw colored, transparent squares that correspond to action execution of last player
+        logic is the same as in `pyg_draw_move_hints`
+
+        :param last_moves: list of tuples with coordinates
+        """
+        transparent_hint_surface = pygame.Surface((self.block_size, self.block_size), pygame.SRCALPHA)
+        transparent_hint_surface.fill((*self.LAST_MOVE_HIGHLIGHT_COLOR, 40))
+
+        if last_moves:
+            for board_row, board_column in last_moves:
                 self.screen.blit(transparent_hint_surface, dest=(
                     self.BOARD_RENDER_SPACE[0] + self.block_size * board_column,
                     self.BOARD_RENDER_SPACE[1] + self.block_size * board_row

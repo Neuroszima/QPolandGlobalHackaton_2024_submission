@@ -33,6 +33,8 @@ class CheckersGame:
 
         self.selected_piece: tuple[int, int] | None = None
         self.hints_for_selection = None
+        # two tuples of origin and destination of enemy move
+        self.previous_move_coordinates = []
 
     @staticmethod
     def _check_out_of_border(col, row):
@@ -177,3 +179,6 @@ class CheckersGame:
                 moves_to_highlight.append((valid_move[2], valid_move[3]))
         self.hints_for_selection = moves_to_highlight
 
+    def save_last_move_coordinates(self, origin_row, origin_col, target_row, target_col):
+        """save these for visualization purposes somewhere else"""
+        self.previous_move_coordinates = ((origin_row, origin_col), (target_row, target_col))
