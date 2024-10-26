@@ -86,6 +86,11 @@ class GameDisplayEngine:
                 max_y = e[3]
 
         return max_x, max_y
+    def clear_sidebar(self):
+        """Clear the sidebar area to reset it before redrawing new content."""
+        start_x, start_y, end_x, end_y = self.QUANTUM_STATE_RENDER_SPACE
+        # Fill the sidebar with a background color to "clear" it
+        self.screen.fill((0, 0, 0), rect=(start_x, start_y, end_x - start_x, end_y - start_y))  # Black fill for sidebar
 
     @staticmethod
     def c_draw_quantum_states(state_data: STATE_DATA_TYPEHINT):
@@ -97,17 +102,17 @@ class GameDisplayEngine:
 
     def pyg_draw_quantum_states(self, state_data: STATE_DATA_TYPEHINT):
         """Draw quantum states and probabilities using Pygame."""
+        self.clear_sidebar()  # Clear the sidebar before drawing new quantum states
+        
         x_offset_state = 5  # Horizontal position for the state column
         x_offset_board_move = 125  # Horizontal position for the board move column
         x_offset_probability = 230  # Horizontal position for the probability column
 
-        # self.screen.fill((0, 0, 0))  # Clear the screen with black background
         start_x, start_y, end_x, end_y = self.QUANTUM_STATE_RENDER_SPACE
 
         headers_y = 20
         # Draw headers
         headers = [
-            # additional pixel distance is required for "centering" and spacing of header display
             ("Q-State", x_offset_state + 5),
             ("Move", x_offset_board_move + 40),
             ("Q-Prob.", x_offset_probability + 50)
@@ -125,7 +130,7 @@ class GameDisplayEngine:
         )
 
         y_columns_start = 85
-        y_row_sepearation = self.font_size + 8
+        y_row_separation = self.font_size + 8
         try:
             text_size = len(state_data[0][0])
         except IndexError:  # no human-readable format has been calculated yet
@@ -138,7 +143,8 @@ class GameDisplayEngine:
 
         # Draw each quantum state and its corresponding data
         for i, (state, transition, probability) in enumerate(state_data):
-            row_y = start_y + y_columns_start + y_row_sepearation * i
+            row_y = start_y + y_columns_start + y_row_separation * i
+            
             # State column
             state_surface = self.quantum_font.render(state, True, self.TEXT_COLOR)
             self.screen.blit(state_surface, (start_x + x_offset_state + centering_factor_state, row_y))
@@ -149,7 +155,7 @@ class GameDisplayEngine:
 
             # Probability column
             probability_surface = self.quantum_font.render(probability, True, self.TEXT_COLOR)
-            self.screen.blit(probability_surface, (start_x + x_offset_probability + 50, row_y))
+            self.screen.blit(probability_surface, (start_x + x_offset_probability +50, row_y))
 
         pygame.display.flip()
 
