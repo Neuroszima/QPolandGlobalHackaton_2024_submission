@@ -109,7 +109,25 @@ class GameDisplayEngine:
             print(r_print)
         print("  -" + "----" * 8)
         print("   " + "".join([f" {chr(col + 65)}  " for col in range(8)]))
+        
+    def pyg_draw_win_lose_message(self, message: str):
+        """Display a centered win/lose message."""
+        # the font and color
+        font = pygame.font.SysFont('arial', 48)
+        color = (255, 255, 255) 
 
+        # Render the message
+        text_surface = font.render(message, True, color)
+        text_rect = text_surface.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2))
+
+        # Draw a semi-transparent background rectangle behind the message
+        background_rect = text_rect.inflate(20, 20)  # padding around the message
+        pygame.draw.rect(self.screen, (0, 0, 0, 128), background_rect)  # Black with some transparency
+
+        # Display the message on the screen
+        self.screen.blit(text_surface, text_rect)
+        pygame.display.flip()  # Update the display
+        
     @staticmethod
     def pyg_click_within_region(start_x, start_y, end_x, end_y, click_x, click_y):
         """detect if event happened to be in the region"""

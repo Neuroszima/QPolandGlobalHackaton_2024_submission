@@ -96,6 +96,17 @@ class Game:
                 self.bot_move()
 
             pygame.display.flip()
+            
+               # Check for win or lose conditions
+        if self.game_rulesystem.check_win_condition():
+            self.game_interaction_engine.pyg_draw_win_lose_message("You Win!")
+            pygame.time.delay(3000)  # Pause for 3 seconds before closing
+            self.running = False
+        elif self.game_rulesystem.check_lose_condition():
+            self.game_interaction_engine.pyg_draw_win_lose_message("You Lose!")
+            pygame.time.delay(3000)  # Pause for 3 seconds before closing
+            self.running = False
+
 
         pygame.quit()
 
