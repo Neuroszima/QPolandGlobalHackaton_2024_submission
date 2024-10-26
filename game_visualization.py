@@ -24,6 +24,7 @@ class GameDisplayEngine:
     QUANTUM_TEXT_COLOR = (152, 245, 249)  # Changed to white for better visibility
     BOARD_MARKER_TEXT_COLOR = (204, 255, 255)  # very light blue/violet
     LAST_MOVE_HIGHLIGHT_COLOR = (255, 166, 77)  # for now this will be yellow/orange
+    RESET_BUTTON_COLOR = (204, 204, 255)
     COLORS_OF_PIECES = {
         "B": (95, 95, 95),     # BLACK_PIECE_COLOR
         "R": (255, 0, 0),      # RED_PIECE_COLOR
@@ -36,6 +37,7 @@ class GameDisplayEngine:
     BOARD_HORIZONTAL_ANNOTATION_RENDER_SPACE = (50, 800, 800, 850)
     BOARD_RENDER_SPACE = (50, 0, 850, 800)
     QUANTUM_STATE_RENDER_SPACE = (850, 0, 1250, 800)
+    RESET_BUTTON_RENDER_SPACE = (900, 750, 1150, 810)
 
     def __init__(self, vis_type: Literal['pygame', 'console'] | str = None):
         self.vis_type = "pygame" if vis_type is None else vis_type
@@ -69,20 +71,11 @@ class GameDisplayEngine:
             self.QUANTUM_STATE_RENDER_SPACE,
             self.BOARD_RENDER_SPACE,
             self.BOARD_VERTICAL_ANNOTATION_RENDER_SPACE,
-            self.BOARD_HORIZONTAL_ANNOTATION_RENDER_SPACE
+            self.BOARD_HORIZONTAL_ANNOTATION_RENDER_SPACE,
+            self.RESET_BUTTON_RENDER_SPACE
         ]
         self.selected_piece = None
         self.possible_moves = []  # To track possible moves
-
-
-        # horizontal_middlepoint = (
-        #         self.BOARD_VERTICAL_ANNOTATION_RENDER_SPACE[2] -
-        #         self.BOARD_VERTICAL_ANNOTATION_RENDER_SPACE[0]) - (self.font_size * 3/4)
-        #
-        # vertical_middlepoint = (
-        #         self.BOARD_HORIZONTAL_ANNOTATION_RENDER_SPACE[3] -
-        #         self.BOARD_HORIZONTAL_ANNOTATION_RENDER_SPACE[1]) - (self.font_size * 3/4)
-        # print(f"{horizontal_middlepoint=}", f"{vertical_middlepoint=}")
 
     @staticmethod
     def c_possible_moves_section(human_readable_possible_moves: list):
@@ -109,25 +102,46 @@ class GameDisplayEngine:
             print(r_print)
         print("  -" + "----" * 8)
         print("   " + "".join([f" {chr(col + 65)}  " for col in range(8)]))
-        
-    def pyg_draw_win_lose_message(self, message: str):
+
+    def pyg_draw_win_lose_message(self, human_won: bool):
         """Display a centered win/lose message."""
         # the font and color
-        font = pygame.font.SysFont('arial', 48)
-        color = (255, 255, 255) 
+        end_game_font = pygame.font.SysFont('arial', 48)
+        lose_color = (255, 0, 0, 60)
+        win_color = (0, 255, 0, 60)
 
-        # Render the message
-        text_surface = font.render(message, True, color)
-        text_rect = text_surface.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2))
+        if human_won:
+            computer_msg = "computer lost!"
+            human_msg = "you won!"
+            computer_color = lose_color
+            human_color = win_color
+        else:
+            computer_msg = "computer won!"
+            human_msg = "you lost!"
+            computer_color = win_color
+            human_color = lose_color
+
+        # Render computer message
+        msg1_text_surface = end_game_font.render(computer_msg, True, computer_color)
+        text_1_rect = msg1_text_surface.get_rect(center=(
+            self.screen.get_width() // 2, self.screen.get_height() // 2))
+
+        # Render human message
+        msg2_text_surface = end_game_font.render(human_msg, True, human_color)
+        text_2_rect = msg2_text_surface.get_rect(center=(
+            self.screen.get_width() // 2, self.screen.get_height() // 2 - 60))
 
         # Draw a semi-transparent background rectangle behind the message
-        background_rect = text_rect.inflate(20, 20)  # padding around the message
-        pygame.draw.rect(self.screen, (0, 0, 0, 128), background_rect)  # Black with some transparency
+        background_rect_1 = text_1_rect.inflate(20, 20)  # padding around the message
+        pygame.draw.rect(self.screen, (0, 0, 0, 70), background_rect_1)  # Black with some transparency
+        background_rect_2 = text_2_rect.inflate(20, 20)  # padding around the message
+        pygame.draw.rect(self.screen, (0, 0, 0, 70), background_rect_2)  # Black with some transparency
 
         # Display the message on the screen
-        self.screen.blit(text_surface, text_rect)
+        self.screen.blit(msg1_text_surface, text_1_rect)
+        self.screen.blit(msg2_text_surface, text_2_rect)
         pygame.display.flip()  # Update the display
-        
+
     @staticmethod
     def pyg_click_within_region(start_x, start_y, end_x, end_y, click_x, click_y):
         """detect if event happened to be in the region"""
@@ -135,6 +149,14 @@ class GameDisplayEngine:
             if start_y < click_y < end_y:
                 return True
         return False
+
+    def pyg_draw_reset_button(self):
+        """start the game again"""
+        start_x, start_y, end_x, end_y = self.RESET_BUTTON_RENDER_SPACE
+        button = pygame.Rect(start_x, start_y, end_x - start_x, end_y - start_y)
+        pygame.draw.rect(self.screen, self.RESET_BUTTON_COLOR, button, border_radius=2)
+        reset_text = self.quantum_font.render("Play Again", True, (0, 0, 0))
+        self.screen.blit(reset_text, (start_x + 50, start_y + 20))
 
     def draw_quantum_states(self, state_data: STATE_DATA_TYPEHINT):
         """Draw quantum states and corresponding probabilities in three columns."""
@@ -231,6 +253,9 @@ class GameDisplayEngine:
             probability_surface = self.quantum_font.render(probability, True, t_color)
             self.screen.blit(probability_surface, (start_x + x_offset_probability + 50, row_y))
 
+        # stupid solution to stupid problem Xd
+        self.pyg_draw_reset_button()
+
         pygame.display.flip()
 
     def pyg_get_board_square(self, click_pos) -> Tuple[int, int]:
@@ -317,6 +342,8 @@ class GameDisplayEngine:
         if self.pyg_click_within_region(*self.BOARD_RENDER_SPACE, *pos):
             board_row, board_col = self.pyg_get_board_square(pos)
             return (board_row, board_col), "board"
+        if self.pyg_click_within_region(*self.RESET_BUTTON_RENDER_SPACE, *pos):
+            return pos, "reset"
         return (-1, -1), "none"
 
     def pyg_display_title(self):

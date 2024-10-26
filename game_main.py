@@ -40,6 +40,41 @@ class Game:
         self.game_rulesystem.hints_for_selection = None
         self.turn_start = True  # for all "next turn" actions to be triggered
 
+    def game_reset(self):
+        self.game_rulesystem.reset_everything()
+        self.q_bot.human_readable_predictions = []
+        self.q_bot.counts = None
+        self.q_bot.valid_moves_with_flags = None
+        self.turn_start = True
+
+    def trigger_player_action(self, event_coordinates, game_event):
+        """decide what to do based on the player input"""
+        if game_event == "board":
+            if not self.game_rulesystem.selected_piece:
+                self.game_rulesystem.selected_piece = event_coordinates
+                self.game_rulesystem.calculate_hints_for_selection()
+            else:
+                # player decision
+                if event_coordinates in self.game_rulesystem.hints_for_selection:
+                    to_execute = (*self.game_rulesystem.selected_piece, *event_coordinates)
+                    self.game_rulesystem.execute_move(*to_execute)
+                    self.end_turn_cleanup()
+                else:
+                    self.game_rulesystem.selected_piece = None
+                    self.game_rulesystem.hints_for_selection = None
+        elif game_event == "reset":
+            self.game_reset()
+
+    def who_won_procedure(self):
+        """we know now that the game is over, lets show a victory message"""
+        print("who won procedure")
+        if self.game_rulesystem.current_player == self.game_rulesystem.STARTING_PLAYER:
+            # human player no longer has any move
+            self.game_interaction_engine.pyg_draw_win_lose_message(False)
+        else:
+            self.game_interaction_engine.pyg_draw_win_lose_message(True)
+        pygame.time.delay(3000)  # Pause for 3 seconds
+
     def bot_move(self):
         """execute chain of events that bot does"""
         # we execute bot controls and movements -> black pieces
@@ -71,7 +106,9 @@ class Game:
             if self.turn_start:
                 # this will make calculation only happen once
                 self.game_rulesystem.calculate_current_valid_moves()
-                self.game_rulesystem.check_lose_game()  # don't invert with ^ (above)
+                game_over = self.game_rulesystem.check_lose_game()  # don't invert with ^ (above)
+                if game_over:
+                    self.who_won_procedure()
                 self.turn_start = False
 
             if self.game_rulesystem.current_player == self.game_rulesystem.STARTING_PLAYER:
@@ -81,34 +118,12 @@ class Game:
                         self.running = False
                     elif event.type == pygame.MOUSEBUTTONDOWN:
                         event_coordinates, game_event = self.game_interaction_engine.pyg_handle_click(event.pos)
-                        if game_event == "board":
-                            if not self.game_rulesystem.selected_piece:
-                                self.game_rulesystem.selected_piece = event_coordinates
-                                self.game_rulesystem.calculate_hints_for_selection()
-                            else:
-                                # player decision
-                                if event_coordinates in self.game_rulesystem.hints_for_selection:
-                                    to_execute = (*self.game_rulesystem.selected_piece, *event_coordinates)
-                                    self.game_rulesystem.execute_move(*to_execute)
-                                    self.end_turn_cleanup()
-                                else:
-                                    self.game_rulesystem.selected_piece = None
-                                    self.game_rulesystem.hints_for_selection = None
+                        self.trigger_player_action(event_coordinates, game_event)
+
             else:
                 self.bot_move()
 
             pygame.display.flip()
-            
-               # Check for win or lose conditions
-        if self.game_rulesystem.check_win_condition():
-            self.game_interaction_engine.pyg_draw_win_lose_message("You Win!")
-            pygame.time.delay(3000)  # Pause for 3 seconds before closing
-            self.running = False
-        elif self.game_rulesystem.check_lose_condition():
-            self.game_interaction_engine.pyg_draw_win_lose_message("You Lose!")
-            pygame.time.delay(3000)  # Pause for 3 seconds before closing
-            self.running = False
-
 
         pygame.quit()
 
@@ -136,4 +151,5 @@ class Game:
             self.pyg_main()
         else:
             self.c_main()
+
 

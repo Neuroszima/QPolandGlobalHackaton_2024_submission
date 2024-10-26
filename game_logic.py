@@ -1,4 +1,6 @@
 # game_logic.py
+from copy import deepcopy
+
 
 class CheckersGame:
     STARTING_BOARD = [
@@ -11,6 +13,16 @@ class CheckersGame:
         [' ', 'R', ' ', 'R', ' ', 'R', ' ', 'R'],
         ['R', ' ', 'R', ' ', 'R', ' ', 'R', ' ']
     ]
+    # STARTING_BOARD = [
+    #     [' ', 'B', ' ', 'B', ' ', 'B', ' ', 'B'],
+    #     ['B', ' ', 'B', ' ', 'B', ' ', 'B', ' '],
+    #     [' ', 'B', ' ', 'B', ' ', 'B', ' ', 'B'],
+    #     [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+    #     [' ', ' ', ' ', ' ', ' ', 'R', ' ', ' '],
+    #     [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+    #     [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+    #     [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
+    # ]
     STARTING_PLAYER = "R"
     STARTING_ENEMY = "B"
     PLAYER_1_COLOR = "R"
@@ -21,10 +33,10 @@ class CheckersGame:
     }
 
     def __init__(self):
-        self.board = self.STARTING_BOARD
-        self.current_player = self.STARTING_PLAYER
-        self.current_enemy_player = self.STARTING_ENEMY
-        self.current_player_direction = self.PLAYER_BOARD_DIRECTION[self.current_player]
+        self.board = deepcopy(self.STARTING_BOARD)
+        self.current_player = deepcopy(self.STARTING_PLAYER)
+        self.current_enemy_player = deepcopy(self.STARTING_ENEMY)
+        self.current_player_direction = deepcopy(self.PLAYER_BOARD_DIRECTION[self.current_player])
         self.valid_moves: list = []
 
         b_size = len(self.board)
@@ -182,3 +194,15 @@ class CheckersGame:
     def save_last_move_coordinates(self, origin_row, origin_col, target_row, target_col):
         """save these for visualization purposes somewhere else"""
         self.previous_move_coordinates = ((origin_row, origin_col), (target_row, target_col))
+
+    def reset_everything(self):
+        """reverts state of the game to the beginning"""
+        self.board = deepcopy(self.STARTING_BOARD)
+        self.current_player = deepcopy(self.STARTING_PLAYER)
+        self.current_enemy_player = deepcopy(self.STARTING_ENEMY)
+        self.current_player_direction = deepcopy(self.PLAYER_BOARD_DIRECTION[self.current_player])
+
+        self.valid_moves = []
+        self.selected_piece = None
+        self.hints_for_selection = None
+        self.previous_move_coordinates = []
