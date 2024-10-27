@@ -52,8 +52,8 @@ class QuantumBot:
         self.direction = None  # current_player_direction
         self.human_readable_predictions: list[str, str, str] | None | list = []
 
-        # self.verbose = False  #
-        self.verbose = True  #
+        self.verbose = False  #
+        # self.verbose = True  #
 
     @staticmethod
     def q_minimal_board_move_alloc(valid_moves_count: int):
@@ -470,6 +470,9 @@ class QuantumBot:
             total_counts_accumulated += counts
             self.valid_moves_with_flags[state][-1] = counts
             moves_recommended.append([move, counts])
+
+        if len(self.valid_moves_with_flags) == 0:
+            return moves_recommended
 
         total_counts_accumulated = (
            self.current_job_shots - total_counts_accumulated) // len(self.valid_moves_with_flags)
