@@ -85,9 +85,12 @@ class Game:
         self.q_bot.parse_recommendations_human_readable()
         self.game_interaction_engine.pyg_draw_quantum_states(self.q_bot.human_readable_predictions)
         best_moves = self.q_bot.parse_recommendations_bot_use()
-        to_execute = best_moves[0][0]  # top of the list and 0 column (move)
-        self.game_rulesystem.execute_move(*to_execute)
-        self.game_rulesystem.save_last_move_coordinates(*to_execute)
+        try:
+            to_execute = best_moves[0][0]  # top of the list and 0 column (move)
+            self.game_rulesystem.execute_move(*to_execute)
+            self.game_rulesystem.save_last_move_coordinates(*to_execute)
+        except IndexError:
+            pass
         self.end_turn_cleanup()
 
     def pyg_main(self):
