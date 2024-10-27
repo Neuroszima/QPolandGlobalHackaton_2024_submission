@@ -111,11 +111,67 @@ conditions, when many of them are triggered, we want to diffuse over combination
 2+ conditions fulfilled
 3 conditions fulfilled
 ```
-When done like this, we can really make a diverse quantum state.
+When done like this, we can really achieve diversity in quantum state probabilities.
 
 If you think about it long enough, and you will think about the "more than 1 condition fulfilled" and such, you will
 start to realize that we actually developed something resembling quantum perceptron.
 
-### "greater than" condition 
+### conditions flagging and "greater than" condition
 
-Ok but how do we select states? We do very simple thing of just having enough 
+Ok but how do we select states? We do very simple thing of just having enough conditions fulfilled, per available 
+move on the board. There are 3 situations we flag, each flag having equal weight of 1, being added into accumulator:
+
+- piece_shielded - after moving, will i sit near my own pieces? (possibly won't get checked by enemy, forming a wall?)
+- moves_to_be_beaten - will i overextend myself and, after moving, leave my piece to be beaten by opponent?
+- can_beat - is this move that i will execute result in beating opponent piece?
+
+Each has its own function corresponding to flagging, as well as each gets its own "1/0" qubit representation in 
+`self.conditions_register` which is Quantum register. That board state is marked multicontrol-XGate() over to 
+particular condition flag qubit.
+
+We then have an accumulator, that is going to store the sum of all conditions that are flagged when considering all 
+available board state transitions. There is a multicontrolled-XGate pyramid, that is being dynamically programmed, 
+depending on how many conditions do we want to consider (and accumulate), out of all available ones.
+
+Finally we have the single-qubit ancilla register. This is used to flip the phase (use ZGate()) of all the states, 
+given the desired condition of accumulator itself. When we want to check for example `1+ condition happened`, we need
+several of "atomic" conditionals to be fulfilled, as shown at presentation, as well as below:
+
+Sub-circuit design and iterative assembly with sub-circuit composition into `self.master_circuit` make it very easy to
+repeat entire grover's algorithm, invoking it for each different state of the accumulator. This will ensure, that 
+encoded board configurations with different number of conditions, will not have equal chances of showing up as 
+favourable quantum states. We have, by trial and error, made following grover diffusion iteration sequence:
+
+
+
+This happen to perform correctly. Each shot, se obtain different states, but the overall chance of having most 
+favourable board configuration (the one fulfilling the most conditions) is the highest.
+
+### End note and unused states explanation
+
+due to randomness, when there are multiple states that fulfill the same amount of desirable conditions, from game to 
+game bot can choose differently. This is due to AerSimulator uncertainty, as we sum the number of counts that simulation
+performed, dividing it by 10000. This is onkly a rough estimation, as we could possibly give a direct estimation by 
+obtaining a Statevector, and going from there. However calculating simulations counts done by:
+
+```
+self.counts = job.results().get_counts()
+```
+
+seems to be very convenient and easy.
+
+Last note is about states that aren't used in calculations. These states are never marked by our algorithm, so with each
+diffusion operator, chance of obtaining these states by simulating is getting reduced. Sometimes less and 
+sometimes more.
+
+We do not need these states, so we treat counts that these states receive during simulation as noise. We accumulate 
+these counts during result parsing, and divide evenly between the states that we care about. This does have an impact of
+showing you different probability, since correct way would be probably weighted distribution (the one that has most 
+counts, gets assigned even more counts). Or these states should just be discarded and their counts completely ignored
+in calculating "relative probability". There are many ways to do this, we probably did not pick the best one, but it 
+still works.
+
+The bot functionally accepts the board configuration that got most counts anyway. When grover algorithm 
+greatly increase favourable board configurations counts already in the first place, it hardly makes any difference 
+to add the counts to all the states like that, as we "add the same number to all the states", which keeps the highest 
+number still the highest after "correction".
