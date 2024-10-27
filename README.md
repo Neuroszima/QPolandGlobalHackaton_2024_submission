@@ -2,7 +2,7 @@
 
 Quantronix team's submission to Open track for QPoland Global Quantum Hackaton 2024 organized on DoraHacks
 
-![Graph image 2](./image_examples/Q_logo_project_draughts_8_.png)
+![Project_Logo](./image_examples/Q_logo_project_draughts_8_.png)
 
 ## About project
 
@@ -19,7 +19,8 @@ namely we miss:
     long as you have something to jump over
 
 In terms of high overview of the project, basic information about different modules in this projects is contained in
-the Youtube video attached to the submission.
+the Youtube video attached to the submission. This project uses and expands on knowledge gained during QBronze and
+QNickel quantum certifications and workshops
 
 youtube link to submission presentation: https://youtu.be/fJQyK3DR-xs
 
@@ -53,7 +54,7 @@ to run the game.
 
 ## High level project overview
 
-In short, visualization package is responsible for running the game visuals and updating representation of the board
+In short, game_visualization package is responsible for running the game visuals and updating representation of the board
 for the player to see, as well as handling clicking buttons (like 'Play again') + showing quantum states with 
 probabilities. These probabilities are shown as "predictions of all the bot moves" from last turn. You can also see in
 orange, which move did the bot decide to take, both at "quantum probabilities" sidebar, and on the board.
@@ -93,7 +94,9 @@ others are "positive", the mean becomes zero and inversion does not improve any 
 we artificially pump the number of states by 2x (1 qubit added), when exactly half of our original space is taken by
 correct solutions, Grover's will work at full force. The only thing that we should account for, is that, when marking 
 the states, we only mark from one half of the omega (for example, we check all the solutions, with 
-"most significant bit" being `1`)
+"most significant bits" being `1`)
+
+![Graph image 2](./image_examples/expanding_state_space.png)
 
 Artificial solution pumping has also an added benefit of preventing "probability overshoot".
 
@@ -133,19 +136,29 @@ Each has its own function corresponding to flagging, as well as each gets its ow
 `self.conditions_register` which is Quantum register. That board state is marked multicontrol-XGate() over to 
 particular condition flag qubit.
 
+![condition_marking](./image_examples/condition_marking.png)
+
 We then have an accumulator, that is going to store the sum of all conditions that are flagged when considering all 
 available board state transitions. There is a multicontrolled-XGate pyramid, that is being dynamically programmed, 
 depending on how many conditions do we want to consider (and accumulate), out of all available ones.
 
+![q_counting_adder](./image_examples/q_counting_adder.png)
+
 Finally we have the single-qubit ancilla register. This is used to flip the phase (use ZGate()) of all the states, 
 given the desired condition of accumulator itself. When we want to check for example `1+ condition happened`, we need
 several of "atomic" conditionals to be fulfilled, as shown at presentation, as well as below:
+
+![greater_than](./image_examples/greater_than_operator.png)
 
 Sub-circuit design and iterative assembly with sub-circuit composition into `self.master_circuit` make it very easy to
 repeat entire grover's algorithm, invoking it for each different state of the accumulator. This will ensure, that 
 encoded board configurations with different number of conditions, will not have equal chances of showing up as 
 favourable quantum states. We have, by trial and error, made following grover diffusion iteration sequence:
 
+![circuit_assembly](./image_examples/begin_circuit_assembly.png)
+*beginning of master circuit assembly, before reverse_ops is triggered. Barrier instructions are for visual separation*
+
+<br></br>
 ```python
 self.q_prepare_iteration(3)  # these functions compose as "in_place=True"
 self.q_prepare_iteration(1)  # composition affects: self.master_circuit
@@ -181,6 +194,8 @@ showing you different probability, since correct way would be probably weighted 
 counts, gets assigned even more counts). Or these states should just be discarded and their counts completely ignored
 in calculating "relative probability". There are many ways to do this, we probably did not pick the best one, but it 
 still works.
+
+![predictions](./image_examples/quantum_predicitons_results.png)
 
 The bot functionally accepts the board configuration that got most counts anyway. When grover algorithm 
 greatly increase favourable board configurations counts already in the first place, it hardly makes any difference 
