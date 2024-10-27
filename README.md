@@ -2,6 +2,7 @@
 
 Quantronix team's submission to Open track for QPoland Global Quantum Hackaton 2024 organized on DoraHacks
 
+![Graph image 2](./image_examples/Q_logo_project_draughts_8_.png)
 
 ## About project
 
@@ -69,7 +70,8 @@ finally there is bot_logic, which contains all the quantum sweetness you are her
 ## Inside the quantum brain
 
 Grover algorithm, implemented for this project, resembles heavily implementations based on quantum counting, like the 
-one used the problem of 2-Cut graph coloring. 
+one used the problem of 2-Cut graph coloring. some of the probability enhancing features are shown in this short paper:
+https://arxiv.org/pdf/2311.09326
 
 We first have to calculate correct number of qubits to use, when expressing all the possible states of the board. 
 We use a rough estimate of: `floor(log2(valid_moves_count))+1` with the minimum number of qubits used as 1. This 
@@ -106,11 +108,13 @@ able to 100% prevent this, by diluting state space, and limit ourselves to fixed
 algorithm this way, it is **mathematically impossible to overshoot**, when picked proper number of diffusion iterations
 and proper amount of qubits. That is why we extend the register further, by `num_of_conditions`, because per amount of
 conditions, when many of them are triggered, we want to diffuse over combinations of these:
+
 ```
 1+ conditon fulfilled
 2+ conditions fulfilled
 3 conditions fulfilled
 ```
+
 When done like this, we can really achieve diversity in quantum state probabilities.
 
 If you think about it long enough, and you will think about the "more than 1 condition fulfilled" and such, you will
@@ -142,7 +146,14 @@ repeat entire grover's algorithm, invoking it for each different state of the ac
 encoded board configurations with different number of conditions, will not have equal chances of showing up as 
 favourable quantum states. We have, by trial and error, made following grover diffusion iteration sequence:
 
-
+```python
+self.q_prepare_iteration(3)  # these functions compose as "in_place=True"
+self.q_prepare_iteration(1)  # composition affects: self.master_circuit
+self.q_prepare_iteration(2)
+self.q_prepare_iteration(1)
+self.q_prepare_iteration(2)
+self.q_prepare_iteration(1)
+```
 
 This happen to perform correctly. Each shot, se obtain different states, but the overall chance of having most 
 favourable board configuration (the one fulfilling the most conditions) is the highest.
